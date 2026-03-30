@@ -124,17 +124,16 @@ export const AppShellView: FunctionComponent = () => {
               key={repo.id}
               value={repo.id}
               rightSection={
-                <ActionIcon
-                  size="xs"
-                  variant="subtle"
-                  color="gray"
-                  onClick={(e) => {
+                <Box
+                  component="span"
+                  style={{ cursor: 'pointer', display: 'inline-flex' }}
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     handleRemove(repo.id);
                   }}
                 >
                   <IconX size={12} />
-                </ActionIcon>
+                </Box>
               }
             >
               {repo.name}
