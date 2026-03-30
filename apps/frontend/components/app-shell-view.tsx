@@ -111,7 +111,12 @@ export const AppShellView: FunctionComponent = () => {
       <Tabs
         value={activeTab}
         onChange={setActiveTab}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
       >
         <Tabs.List>
           {repos.map((repo) => (
@@ -144,7 +149,7 @@ export const AppShellView: FunctionComponent = () => {
           <Tabs.Panel
             key={repo.id}
             value={repo.id}
-            style={{ flex: 1, overflow: 'hidden' }}
+            style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}
           >
             {activeRepo?.id === repo.id && <RepoView repo={repo} />}
           </Tabs.Panel>

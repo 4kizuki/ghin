@@ -301,6 +301,7 @@ export const ChangesView: FunctionComponent<{
         style={{
           display: 'flex',
           flex: 1,
+          minHeight: 0,
           overflow: 'hidden',
         }}
       >
@@ -312,6 +313,7 @@ export const ChangesView: FunctionComponent<{
             borderRight: '1px solid var(--mantine-color-gray-3)',
             display: 'flex',
             flexDirection: 'column',
+            minHeight: 0,
           }}
         >
           <Group px="sm" py={6} justify="space-between">
@@ -391,6 +393,7 @@ export const ChangesView: FunctionComponent<{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
+            minHeight: 0,
             overflow: 'hidden',
           }}
         >

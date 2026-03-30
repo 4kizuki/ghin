@@ -233,14 +233,19 @@ export const RepoView: FunctionComponent<{ repo: Repository }> = ({ repo }) => {
       <Tabs
         value={tab}
         onChange={setTab}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
       >
         <Tabs.List px="md">
           <Tabs.Tab value="changes">Changes</Tabs.Tab>
           <Tabs.Tab value="history">History</Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="changes" style={{ flex: 1, overflow: 'hidden' }}>
+        <Tabs.Panel value="changes" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {status ? (
             <ChangesView
               repoPath={repo.path}
@@ -254,7 +259,7 @@ export const RepoView: FunctionComponent<{ repo: Repository }> = ({ repo }) => {
           )}
         </Tabs.Panel>
 
-        <Tabs.Panel value="history" style={{ flex: 1, overflow: 'hidden' }}>
+        <Tabs.Panel value="history" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           <HistoryView repoPath={repo.path} />
         </Tabs.Panel>
       </Tabs>
