@@ -1,0 +1,26 @@
+{
+  "name": "@repo/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./eslint/*": "./eslint/*.mjs"
+  },
+  "scripts": {
+    "format": "prettier --write --ignore-path ../../.prettierignore .",
+    "format:check": "prettier --check --ignore-path ../../.prettierignore ."
+  },
+  "dependencies": {
+    "@repo/eslint-plugin-react-convention": "workspace:*",
+    "@repo/eslint-plugin-typescript-convention": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "^8.33.0",
+    "@typescript-eslint/parser": "^8.33.0",
+    "eslint-config-next": "^16.1",
+    "eslint-plugin-import": "^2.31.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0",
+    "typescript": "^5.9"
+  }
+}

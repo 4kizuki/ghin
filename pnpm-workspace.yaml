@@ -1,0 +1,4 @@
+packages:
+  - "apps/*"
+  - "shared/*"
+  - "shared/eslint-plugins/*"
