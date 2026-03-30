@@ -10,7 +10,7 @@ import '@mantine/core/styles.css';
 
 export const metadata: Metadata = {
   title: 'Ghin',
-  description: 'Ghin Frontend',
+  description: 'Git Thin Client',
 };
 
 const RootLayout: FunctionComponent<{ children: React.ReactNode }> = ({
@@ -19,10 +19,10 @@ const RootLayout: FunctionComponent<{ children: React.ReactNode }> = ({
   return (
     <html lang="ja" {...mantineHtmlProps}>
       <head>
-        <ColorSchemeScript forceColorScheme="light" />
+        <ColorSchemeScript />
       </head>
-      <body>
-        <MantineProvider forceColorScheme="light">
+      <body style={{ margin: 0 }}>
+        <MantineProvider>
           <ModalsProvider>{children}</ModalsProvider>
         </MantineProvider>
       </body>

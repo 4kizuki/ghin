@@ -1,7 +1,10 @@
+'use client';
+
 import type { FunctionComponent } from 'react';
+import { AppShellView } from '@/components/app-shell-view';
 
 const Page: FunctionComponent = () => {
-  return <div>Ghin</div>;
+  return <AppShellView />;
 };
 
 export default Page;

@@ -6,3 +6,16 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
+
+model Repository {
+  id        String   @id @default(cuid())
+  name      String
+  path      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
