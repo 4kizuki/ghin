@@ -14,13 +14,13 @@
   "dependencies": {
     "@repo/eslint-plugin-react-convention": "workspace:*",
     "@repo/eslint-plugin-typescript-convention": "workspace:*",
-    "@typescript-eslint/eslint-plugin": "^8.33.0",
-    "@typescript-eslint/parser": "^8.33.0",
-    "eslint-config-next": "^16.1",
-    "eslint-plugin-import": "^2.31.0"
+    "@typescript-eslint/eslint-plugin": "8.33.0",
+    "@typescript-eslint/parser": "8.33.0",
+    "eslint-config-next": "16.2.1",
+    "eslint-plugin-import": "2.31.0"
   },
   "devDependencies": {
-    "eslint": "^9.0",
-    "typescript": "^5.9"
+    "eslint": "9.39.4",
+    "typescript": "5.9.3"
   }
 }

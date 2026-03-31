@@ -20,14 +20,14 @@
     "format:check": "prettier --check --ignore-path ../../.prettierignore ."
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.0.0",
-    "@prisma/client": "^7.0.0"
+    "@prisma/adapter-better-sqlite3": "7.0.0",
+    "@prisma/client": "7.0.0"
   },
   "devDependencies": {
     "@repo/config": "workspace:*",
-    "@types/node": "^22",
-    "eslint": "^9.0",
-    "prisma": "^7.0.0",
-    "typescript": "^5.9"
+    "@types/node": "22.19.15",
+    "eslint": "9.39.4",
+    "prisma": "7.0.0",
+    "typescript": "5.9.3"
   }
 }
