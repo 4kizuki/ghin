@@ -26,6 +26,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { VirtuosoHandle, ListRange } from 'react-virtuoso';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -38,6 +39,7 @@ import {
   IconGitMerge,
   IconPlus,
   IconSearch,
+  IconCurrentLocation,
   IconUpload,
 } from '@tabler/icons-react';
 import {
@@ -65,6 +67,7 @@ import { useRepoStatus } from '@/contexts/repo-status-context';
 import { usePolling } from '@/hooks/use-polling';
 import { SearchDialog } from '@/components/search-dialog';
 import { BranchSwitcher } from '@/components/branch-switcher';
+import { CommitCheckoutDialog } from '@/components/commit-checkout-dialog';
 
 const noop = async (): Promise<void> => {};
 
@@ -107,6 +110,35 @@ export const HistoryView: FunctionComponent<{
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
+  const [checkoutCommitHash, setCheckoutCommitHash] = useState<string | null>(
+    null,
+  );
+
+  // HEAD tracking
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const [visibleRange, setVisibleRange] = useState<ListRange>({
+    startIndex: 0,
+    endIndex: 0,
+  });
+
+  const headIndex = useMemo(
+    () => commits.findIndex((c) => c.refs.some((r) => r.includes('HEAD'))),
+    [commits],
+  );
+
+  const headVisible =
+    headIndex >= 0 &&
+    headIndex >= visibleRange.startIndex &&
+    headIndex <= visibleRange.endIndex;
+
+  const scrollToHead = useCallback(() => {
+    if (headIndex >= 0 && virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({
+        index: headIndex,
+        align: 'center',
+      });
+    }
+  }, [headIndex]);
 
   // Fetch state
   const [fetchLoading, setFetchLoading] = useState(false);
@@ -283,6 +315,15 @@ export const HistoryView: FunctionComponent<{
     [selectedHash, setSelectedHash],
   );
 
+  const handleCommitDoubleClick = useCallback((commit: CommitInfo) => {
+    setCheckoutCommitHash(commit.hash);
+  }, []);
+
+  const handlePostCheckout = useCallback(async () => {
+    await refreshStatus();
+    await refreshCommits();
+  }, [refreshStatus, refreshCommits]);
+
   const handlePullMerge = useCallback(async () => {
     setActionLoading(true);
     try {
@@ -349,6 +390,7 @@ export const HistoryView: FunctionComponent<{
   return (
     <Box
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
@@ -538,20 +580,28 @@ export const HistoryView: FunctionComponent<{
       </Group>
 
       <Virtuoso
-        style={{ flex: 1 }}
+        ref={virtuosoRef}
+        style={{ flex: 1, overscrollBehavior: 'none' }}
         data={commits}
         fixedItemHeight={ROW_HEIGHT}
         endReached={loadMore}
         overscan={200}
+        rangeChanged={setVisibleRange}
         itemContent={(index, commit) => {
+          const isHead = index === headIndex;
           const node = graphLayout.nodes[index];
           return (
             <Box
+              onDoubleClick={() => handleCommitDoubleClick(commit)}
               style={(theme) => ({
                 display: 'flex',
                 alignItems: 'center',
                 height: ROW_HEIGHT,
                 borderBottom: `1px solid ${theme.colors.gray[1]}`,
+                cursor: 'pointer',
+                ...(isHead && {
+                  backgroundColor: theme.colors.blue[0],
+                }),
               })}
             >
               <Tooltip label="View diff">
@@ -561,6 +611,7 @@ export const HistoryView: FunctionComponent<{
                   ml={4}
                   style={{ flexShrink: 0 }}
                   onClick={() => handleToggleDiff(commit)}
+                  onDoubleClick={(e) => e.stopPropagation()}
                 >
                   <IconFileCode size={14} />
                 </ActionIcon>
@@ -644,6 +695,7 @@ export const HistoryView: FunctionComponent<{
                       cursor: 'copy',
                     }}
                     onClick={(e) => showCopyFeedback(e, commit.shortHash)}
+                    onDoubleClick={(e) => e.stopPropagation()}
                   >
                     {commit.shortHash}
                   </Text>
@@ -691,6 +743,7 @@ export const HistoryView: FunctionComponent<{
                       cursor: 'copy',
                     }}
                     onClick={(e) => showCopyFeedback(e, commit.author)}
+                    onDoubleClick={(e) => e.stopPropagation()}
                   >
                     {commit.author}
                   </Text>
@@ -846,6 +899,35 @@ export const HistoryView: FunctionComponent<{
         repoPath={repoPath}
         onSwitch={refreshStatus}
       />
+
+      <CommitCheckoutDialog
+        commitHash={checkoutCommitHash}
+        repoPath={repoPath}
+        currentBranch={status?.branch}
+        onClose={() => setCheckoutCommitHash(null)}
+        onCheckout={handlePostCheckout}
+      />
+
+      {headIndex >= 0 && !headVisible && (
+        <Tooltip label="Go to HEAD" position="left">
+          <ActionIcon
+            variant="filled"
+            color="blue"
+            radius="xl"
+            size="lg"
+            onClick={scrollToHead}
+            style={{
+              position: 'absolute',
+              bottom: 16,
+              right: 16,
+              zIndex: 10,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            }}
+          >
+            <IconCurrentLocation size={18} />
+          </ActionIcon>
+        </Tooltip>
+      )}
 
       {copyFeedback && (
         <Text

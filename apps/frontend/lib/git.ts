@@ -470,6 +470,21 @@ const getBranches = async (cwd: string): Promise<BranchInfo[]> => {
     .filter((b) => !b.name.startsWith('origin/HEAD'));
 };
 
+const getBranchesContaining = async (
+  cwd: string,
+  hash: string,
+): Promise<string[]> => {
+  const output = await exec(
+    ['branch', '-a', '--contains', hash, '--format=%(refname:short)'],
+    cwd,
+  );
+  return output
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .filter((b) => !b.startsWith('origin/HEAD'));
+};
+
 const stageFiles = async (cwd: string, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   await exec(['add', '--', ...paths], cwd);
@@ -589,8 +604,14 @@ const checkout = async (cwd: string, branchOrRef: string): Promise<string> => {
   return exec(['checkout', branchOrRef], cwd);
 };
 
-const createBranch = async (cwd: string, name: string): Promise<string> => {
-  return exec(['checkout', '-b', name], cwd);
+const createBranch = async (
+  cwd: string,
+  name: string,
+  startPoint?: string,
+): Promise<string> => {
+  const args = ['checkout', '-b', name];
+  if (startPoint) args.push(startPoint);
+  return exec(args, cwd);
 };
 
 const getMergedBranches = async (cwd: string): Promise<string[]> => {
@@ -735,6 +756,7 @@ export const git = {
   getUntrackedFileContent,
   getLog,
   getBranches,
+  getBranchesContaining,
   stageFiles,
   unstageFiles,
   stageHunk,

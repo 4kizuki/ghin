@@ -3,6 +3,7 @@
 import type { FunctionComponent } from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
+  Button,
   Drawer,
   TextInput,
   Stack,
@@ -15,7 +16,10 @@ import {
 } from '@mantine/core';
 import { IconSearch, IconGitBranch } from '@tabler/icons-react';
 import type { BranchInfo } from '@/lib/git';
-import { getBranches, checkoutRef } from '@/lib/api';
+import { getBranches, checkoutRef, createBranch } from '@/lib/api';
+
+const remoteToLocalName = (branch: string): string =>
+  branch.replace(/^origin\//, '');
 
 export const BranchSwitcher: FunctionComponent<{
   opened: boolean;
@@ -28,6 +32,8 @@ export const BranchSwitcher: FunctionComponent<{
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<string | null>('local');
+  const [creatingFrom, setCreatingFrom] = useState<string | null>(null);
+  const [newBranchName, setNewBranchName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadBranches = useCallback(async () => {
@@ -51,6 +57,8 @@ export const BranchSwitcher: FunctionComponent<{
     } else {
       setFilter('');
       setTab('local');
+      setCreatingFrom(null);
+      setNewBranchName('');
       setError(null);
     }
   }, [opened, loadBranches]);
@@ -68,6 +76,18 @@ export const BranchSwitcher: FunctionComponent<{
     },
     [repoPath, onClose, onSwitch],
   );
+
+  const handleCreateFromRemote = useCallback(async () => {
+    if (!newBranchName.trim() || !creatingFrom) return;
+    setError(null);
+    try {
+      await createBranch(repoPath, newBranchName.trim(), creatingFrom);
+      onClose();
+      await onSwitch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create branch');
+    }
+  }, [repoPath, newBranchName, creatingFrom, onClose, onSwitch]);
 
   const filtered = branches.filter((b) =>
     b.name.toLowerCase().includes(filter.toLowerCase()),
@@ -192,19 +212,50 @@ export const BranchSwitcher: FunctionComponent<{
               </Group>
             ) : (
               remoteBranches.map((branch) => (
-                <Box
-                  key={branch.name}
-                  px="sm"
-                  py={6}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleCheckout(branch.name)}
-                >
-                  <Group gap="xs">
-                    <IconGitBranch size={14} />
-                    <Text size="sm" c="dimmed">
-                      {branch.name}
-                    </Text>
-                  </Group>
+                <Box key={branch.name}>
+                  <Box
+                    px="sm"
+                    py={6}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      setCreatingFrom(branch.name);
+                      setNewBranchName(remoteToLocalName(branch.name));
+                    }}
+                  >
+                    <Group gap="xs">
+                      <IconGitBranch size={14} />
+                      <Text size="sm" c="dimmed">
+                        {branch.name}
+                      </Text>
+                    </Group>
+                  </Box>
+                  {creatingFrom === branch.name && (
+                    <Box px="sm" py={4}>
+                      <Group gap="xs">
+                        <TextInput
+                          autoFocus
+                          size="xs"
+                          placeholder="local-branch-name"
+                          leftSection={<IconGitBranch size={14} />}
+                          value={newBranchName}
+                          onChange={(e) =>
+                            setNewBranchName(e.currentTarget.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleCreateFromRemote();
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                        <Button
+                          size="xs"
+                          disabled={!newBranchName.trim()}
+                          onClick={handleCreateFromRemote}
+                        >
+                          Create
+                        </Button>
+                      </Group>
+                    </Box>
+                  )}
                 </Box>
               ))
             )}

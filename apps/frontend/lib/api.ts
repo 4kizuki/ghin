@@ -75,6 +75,29 @@ export const getLog = (
 export const getBranches = (repo: string): Promise<BranchInfo[]> =>
   fetchJson(`/api/git/branches?repo=${encodeURIComponent(repo)}`);
 
+// ─── Branches Containing ────────────────────────────────────────────
+
+export const getBranchesContaining = (
+  repo: string,
+  hash: string,
+): Promise<{ branches: string[] }> =>
+  fetchJson(
+    `/api/git/branches-containing?repo=${encodeURIComponent(repo)}&hash=${encodeURIComponent(hash)}`,
+  );
+
+// ─── Create Branch ─────────────────────────────────────────────────
+
+export const createBranch = (
+  repo: string,
+  name: string,
+  startPoint?: string,
+): Promise<{ ok: boolean; output: string }> =>
+  fetchJson('/api/git/create-branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, name, startPoint }),
+  });
+
 // ─── Stage / Unstage ────────────────────────────────────────────────
 
 export const stagePaths = (
