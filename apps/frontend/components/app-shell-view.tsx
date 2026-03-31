@@ -1,25 +1,23 @@
 'use client';
 
 import type { FunctionComponent, ReactNode } from 'react';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import {
   Tabs,
   Group,
   ActionIcon,
   Text,
   Stack,
-  Modal,
-  TextInput,
   Button,
   Box,
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconMenu2, IconSearch, IconX } from '@tabler/icons-react';
+import { IconMenu2, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import type { Repository } from '@/lib/api';
-import { addRepository, removeRepository } from '@/lib/api';
+import { removeRepository } from '@/lib/api';
 import { SearchDialog } from '@/components/search-dialog';
 import { ShortcutsHelp } from '@/components/shortcuts-help';
 import { RepoDrawer } from '@/components/repo-drawer';
@@ -35,15 +33,12 @@ export const AppShellView: FunctionComponent<{
   const pathname = usePathname();
   const repoId = params.repoId ?? null;
 
-  const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
   const [drawerOpened, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(false);
   const [helpOpened, { open: openHelp, close: closeHelp }] =
     useDisclosure(false);
   const [searchOpened, { open: openSearch, close: closeSearch }] =
     useDisclosure(false);
-  const [newName, setNewName] = useState('');
-  const [newPath, setNewPath] = useState('');
 
   const allRepoIds = useMemo(() => repos.map((r) => r.id), [repos]);
   const rawOpenTabIds = useOpenTabStore();
@@ -83,17 +78,6 @@ export const AppShellView: FunctionComponent<{
     },
     [router, pathname],
   );
-
-  const handleAdd = useCallback(async () => {
-    if (!newName.trim() || !newPath.trim()) return;
-    const repo = await addRepository(newName.trim(), newPath.trim());
-    setNewName('');
-    setNewPath('');
-    closeAdd();
-    openTab(repo.id);
-    router.refresh();
-    router.push(`/repos/${repo.id}/changes`);
-  }, [newName, newPath, closeAdd, router, openTab]);
 
   const handleCloseTab = useCallback(
     (id: string) => {
@@ -265,7 +249,10 @@ export const AppShellView: FunctionComponent<{
             <Text c="dimmed" size="lg">
               No repositories added
             </Text>
-            <Button onClick={openDrawer} leftSection={<IconMenu2 size={16} />}>
+            <Button
+              onClick={() => router.push('/add-repository')}
+              leftSection={<IconPlus size={16} />}
+            >
               Add Repository
             </Button>
           </Stack>
@@ -279,31 +266,7 @@ export const AppShellView: FunctionComponent<{
         openTabIds={openTabIds}
         onOpenRepo={handleOpenRepo}
         onDeleteRepo={handleDeleteRepo}
-        onAddRepo={openAdd}
       />
-
-      <Modal opened={addOpened} onClose={closeAdd} title="Add Repository">
-        <Stack>
-          <TextInput
-            label="Name"
-            placeholder="my-project"
-            value={newName}
-            onChange={(e) => setNewName(e.currentTarget.value)}
-          />
-          <TextInput
-            label="Path"
-            placeholder="/Users/you/projects/my-project"
-            value={newPath}
-            onChange={(e) => setNewPath(e.currentTarget.value)}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeAdd}>
-              Cancel
-            </Button>
-            <Button onClick={handleAdd}>Add</Button>
-          </Group>
-        </Stack>
-      </Modal>
 
       <ShortcutsHelp opened={helpOpened} onClose={closeHelp} />
 

@@ -14,6 +14,7 @@ import {
   Button,
 } from '@mantine/core';
 import { IconSearch, IconTrash, IconPlus } from '@tabler/icons-react';
+import { useRouter } from 'next/navigation';
 import type { Repository } from '@/lib/api';
 
 export const RepoDrawer: FunctionComponent<{
@@ -23,16 +24,8 @@ export const RepoDrawer: FunctionComponent<{
   openTabIds: string[];
   onOpenRepo: (id: string) => void;
   onDeleteRepo: (id: string) => void;
-  onAddRepo: () => void;
-}> = ({
-  opened,
-  onClose,
-  repos,
-  openTabIds,
-  onOpenRepo,
-  onDeleteRepo,
-  onAddRepo,
-}) => {
+}> = ({ opened, onClose, repos, openTabIds, onOpenRepo, onDeleteRepo }) => {
+  const router = useRouter();
   const [filter, setFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -151,7 +144,8 @@ export const RepoDrawer: FunctionComponent<{
           leftSection={<IconPlus size={16} />}
           variant="light"
           onClick={() => {
-            onAddRepo();
+            onClose();
+            router.push('/add-repository');
           }}
           style={{ flex: '0 0 auto' }}
         >
