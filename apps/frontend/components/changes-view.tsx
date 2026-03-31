@@ -14,7 +14,6 @@ import {
   Switch,
   Stack,
   Tooltip,
-  ActionIcon,
   Badge,
   Loader,
   Modal,
@@ -36,8 +35,6 @@ import {
   IconGitMerge,
   IconUpload,
   IconSearch,
-  IconPlus,
-  IconMinus,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useRouter, useParams } from 'next/navigation';
@@ -736,26 +733,16 @@ export const ChangesView: FunctionComponent<{
               overflow: 'hidden',
             }}
           >
-            <Group
-              px="sm"
-              py={6}
-              justify="space-between"
-              style={{ flex: '0 0 auto' }}
-            >
+            <Group px="sm" py={6} gap="xs" style={{ flex: '0 0 auto' }}>
+              <Checkbox
+                size="xs"
+                checked={stagedEntries.length > 0}
+                disabled={stagedEntries.length === 0}
+                onChange={handleUnstageAll}
+              />
               <Text size="xs" fw={600} c="dimmed" tt="uppercase">
                 Staged Changes ({stagedEntries.length})
               </Text>
-              {stagedEntries.length > 0 && (
-                <Tooltip label="Unstage All">
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    onClick={handleUnstageAll}
-                  >
-                    <IconMinus size={12} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
             </Group>
             <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
               {stagedEntries.length === 0 ? (
@@ -786,26 +773,16 @@ export const ChangesView: FunctionComponent<{
               overflow: 'hidden',
             }}
           >
-            <Group
-              px="sm"
-              py={6}
-              justify="space-between"
-              style={{ flex: '0 0 auto' }}
-            >
+            <Group px="sm" py={6} gap="xs" style={{ flex: '0 0 auto' }}>
+              <Checkbox
+                size="xs"
+                checked={false}
+                disabled={unstagedEntries.length === 0}
+                onChange={handleStageAll}
+              />
               <Text size="xs" fw={600} c="dimmed" tt="uppercase">
                 Unstaged Changes ({unstagedEntries.length})
               </Text>
-              {unstagedEntries.length > 0 && (
-                <Tooltip label="Stage All">
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    onClick={handleStageAll}
-                  >
-                    <IconPlus size={12} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
             </Group>
             <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
               {unstagedEntries.length === 0 ? (
