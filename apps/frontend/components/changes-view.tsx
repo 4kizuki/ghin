@@ -868,12 +868,6 @@ export const ChangesView: FunctionComponent<{
                 value={commitMsg}
                 onChange={(e) => setCommitMsg(e.currentTarget.value)}
                 ref={commitInputRef}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    handleCommit();
-                  }
-                }}
                 style={{ flex: 1 }}
               />
             </Group>
