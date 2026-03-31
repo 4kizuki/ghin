@@ -1,7 +1,7 @@
 'use client';
 
 import type { FunctionComponent } from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   ScrollArea,
@@ -12,13 +12,14 @@ import {
   ActionIcon,
   Tooltip,
   Loader,
-  Button,
 } from '@mantine/core';
-import { IconGitCommit, IconArrowBackUp, IconEye } from '@tabler/icons-react';
+import { IconArrowBackUp } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import type { CommitInfo, FileDiff } from '@/lib/git';
 import { getLog, getCommitDiff, revertCommit } from '@/lib/api';
 import { DiffViewer } from '@/components/diff-viewer';
+import { computeGraphLayout } from '@/lib/graph-layout';
+import { CommitGraphRow, ROW_HEIGHT } from '@/components/commit-graph';
 
 const noop = async (): Promise<void> => {};
 
@@ -30,6 +31,11 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
+
+  const graphLayout = useMemo(
+    () => computeGraphLayout(commits),
+    [commits],
+  );
 
   const loadCommits = useCallback(async () => {
     setLoading(true);
@@ -99,14 +105,15 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
         overflow: 'hidden',
       }}
     >
-      {/* Commit list */}
+      {/* Commit list with graph */}
       <Box
         style={{
-          width: 400,
-          minWidth: 300,
+          width: 480,
+          minWidth: 320,
           borderRight: '1px solid var(--mantine-color-gray-3)',
           display: 'flex',
           flexDirection: 'column',
+          minHeight: 0,
         }}
       >
         <Group px="sm" py={6}>
@@ -115,72 +122,84 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
           </Text>
         </Group>
         <ScrollArea style={{ flex: 1 }}>
-          {commits.map((commit) => (
-            <Box
-              key={commit.hash}
-              px="sm"
-              py={6}
-              style={(theme) => ({
-                cursor: 'pointer',
-                backgroundColor:
-                  selectedCommit?.hash === commit.hash
-                    ? theme.colors.blue[0]
-                    : undefined,
-                borderBottom: `1px solid ${theme.colors.gray[1]}`,
-              })}
-              onClick={() => handleSelectCommit(commit)}
-            >
-              <Group gap="xs" wrap="nowrap">
-                <IconGitCommit
-                  size={14}
-                  style={{ flexShrink: 0 }}
-                  color="var(--mantine-color-gray-6)"
+          {commits.map((commit, index) => {
+            const node = graphLayout.nodes[index];
+            return (
+              <Box
+                key={commit.hash}
+                style={(theme) => ({
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: ROW_HEIGHT,
+                  cursor: 'pointer',
+                  backgroundColor:
+                    selectedCommit?.hash === commit.hash
+                      ? theme.colors.blue[0]
+                      : undefined,
+                  borderBottom: `1px solid ${theme.colors.gray[1]}`,
+                })}
+                onClick={() => handleSelectCommit(commit)}
+              >
+                <CommitGraphRow
+                  node={node}
+                  maxLane={graphLayout.maxLane}
                 />
-                <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-                  <Group gap={4} wrap="nowrap">
-                    <Text size="xs" fw={500} truncate="end">
-                      {commit.message}
-                    </Text>
-                  </Group>
-                  <Group gap="xs">
+                <Stack
+                  gap={0}
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    overflow: 'hidden',
+                    paddingRight: 8,
+                  }}
+                >
+                  <Text size="xs" fw={500} truncate="end">
+                    {commit.message}
+                  </Text>
+                  <Group gap="xs" wrap="nowrap">
                     <Text size="xs" c="dimmed">
                       {commit.shortHash}
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Text size="xs" c="dimmed" truncate="end">
                       {commit.author}
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                       {new Date(commit.date).toLocaleDateString()}
                     </Text>
                   </Group>
                   {commit.refs.length > 0 && (
-                    <Group gap={4} mt={2}>
+                    <Group gap={4} wrap="nowrap" style={{ overflow: 'hidden' }}>
                       {commit.refs.map((ref) => (
-                        <Badge key={ref} size="xs" variant="light">
+                        <Badge
+                          key={ref}
+                          size="xs"
+                          variant="light"
+                          style={{ flexShrink: 0 }}
+                        >
                           {ref}
                         </Badge>
                       ))}
                     </Group>
                   )}
                 </Stack>
-                <Group gap={4} style={{ flexShrink: 0 }}>
-                  <Tooltip label="Revert">
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRevert(commit);
-                      }}
-                    >
-                      <IconArrowBackUp size={12} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-              </Group>
-            </Box>
-          ))}
+                <Tooltip label="Revert">
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    mr="xs"
+                    style={{ flexShrink: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRevert(commit);
+                    }}
+                  >
+                    <IconArrowBackUp size={12} />
+                  </ActionIcon>
+                </Tooltip>
+              </Box>
+            );
+          })}
         </ScrollArea>
       </Box>
 
@@ -191,6 +210,7 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          minHeight: 0,
         }}
       >
         {loadingDiff ? (
