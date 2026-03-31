@@ -1,6 +1,9 @@
 import type { FunctionComponent } from 'react';
+import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { ChangesPageClient } from './page-client';
+
+export const metadata: Metadata = { title: 'Changes' };
 
 const Page: FunctionComponent = async () => {
   const [autoPushRow, aiEnabledRow, authorNameRow, authorEmailRow] =

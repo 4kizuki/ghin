@@ -11,7 +11,7 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
 export const metadata: Metadata = {
-  title: 'Ghin',
+  title: { default: 'Ghin', template: '%s | Ghin' },
   description: 'Git Thin Client',
 };
 

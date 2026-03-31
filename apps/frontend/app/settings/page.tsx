@@ -1,8 +1,11 @@
 import type { FunctionComponent } from 'react';
+import type { Metadata } from 'next';
 import { Container, Title, Group } from '@mantine/core';
 import { prisma } from '@/lib/prisma';
 import { SettingsView } from '@/components/settings-view';
 import { BackLink } from './back-link';
+
+export const metadata: Metadata = { title: 'Settings' };
 
 const DEFAULT_MODEL = 'gpt-5.3-codex-spark';
 const DEFAULT_PROVIDER = 'codex';
