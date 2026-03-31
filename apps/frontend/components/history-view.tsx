@@ -18,7 +18,6 @@ import {
   CloseButton,
   Button,
   Indicator,
-  Notification,
   Popover,
   Switch,
   Checkbox,
@@ -27,6 +26,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 import { Virtuoso } from 'react-virtuoso';
 import type { VirtuosoHandle, ListRange } from 'react-virtuoso';
 import {
@@ -113,10 +113,7 @@ export const HistoryView: FunctionComponent<{
   const copyFadeRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [actionLoading, setActionLoading] = useState(false);
-  const [notification, setNotification] = useState<{
-    message: string;
-    color: string;
-  } | null>(null);
+
   const [searchOpened, { open: openSearch, close: closeSearch }] =
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
@@ -259,7 +256,7 @@ export const HistoryView: FunctionComponent<{
       await refreshStatus();
       await refreshCommits();
     } catch (e) {
-      setNotification({
+      notifications.show({
         message: e instanceof Error ? e.message : 'Fetch failed',
         color: 'red',
       });
@@ -354,14 +351,14 @@ export const HistoryView: FunctionComponent<{
       try {
         const result = await mergeRef(repoPath, branch);
         if (result.hasConflicts) {
-          setNotification({
+          notifications.show({
             message: 'Merge conflicts detected. Please resolve in VSCode.',
             color: 'yellow',
           });
         } else if (!result.success) {
-          setNotification({ message: result.output, color: 'red' });
+          notifications.show({ message: result.output, color: 'red' });
         } else {
-          setNotification({
+          notifications.show({
             message: `Merged ${branch} successfully`,
             color: 'green',
           });
@@ -369,7 +366,7 @@ export const HistoryView: FunctionComponent<{
         await refreshStatus();
         await refreshCommits();
       } catch (e) {
-        setNotification({
+        notifications.show({
           message: e instanceof Error ? e.message : 'Merge failed',
           color: 'red',
         });
@@ -406,14 +403,14 @@ export const HistoryView: FunctionComponent<{
           setActionLoading(true);
           try {
             await resetToCommit(repoPath, commit.hash, mode);
-            setNotification({
+            notifications.show({
               message: `Reset (--${mode}) to ${commit.shortHash} successful`,
               color: 'green',
             });
             await refreshStatus();
             await refreshCommits();
           } catch (e) {
-            setNotification({
+            notifications.show({
               message: e instanceof Error ? e.message : 'Reset failed',
               color: 'red',
             });
@@ -431,19 +428,22 @@ export const HistoryView: FunctionComponent<{
     try {
       const result = await pullAndMergeMain(repoPath);
       if (result.hasConflicts) {
-        setNotification({
+        notifications.show({
           message: 'Merge conflicts detected. Please resolve in VSCode.',
           color: 'yellow',
         });
       } else if (!result.success) {
-        setNotification({ message: result.output, color: 'red' });
+        notifications.show({ message: result.output, color: 'red' });
       } else {
-        setNotification({ message: 'Pull & merge successful', color: 'green' });
+        notifications.show({
+          message: 'Pull & merge successful',
+          color: 'green',
+        });
       }
       await refreshStatus();
       await refreshCommits();
     } catch (e) {
-      setNotification({
+      notifications.show({
         message: e instanceof Error ? e.message : 'Pull & merge failed',
         color: 'red',
       });
@@ -456,10 +456,10 @@ export const HistoryView: FunctionComponent<{
     setActionLoading(true);
     try {
       await pushChanges(repoPath, !status?.upstream);
-      setNotification({ message: 'Push successful', color: 'green' });
+      notifications.show({ message: 'Push successful', color: 'green' });
       await refreshStatus();
     } catch (e) {
-      setNotification({
+      notifications.show({
         message: e instanceof Error ? e.message : 'Push failed',
         color: 'red',
       });
@@ -661,18 +661,6 @@ export const HistoryView: FunctionComponent<{
           </Button>
         </Group>
       </Group>
-
-      {notification && (
-        <Notification
-          color={notification.color}
-          onClose={() => setNotification(null)}
-          withCloseButton
-          mx="md"
-          mt="xs"
-        >
-          {notification.message}
-        </Notification>
-      )}
 
       <Group px="sm" py={6}>
         <Text size="xs" fw={600} c="dimmed" tt="uppercase">
