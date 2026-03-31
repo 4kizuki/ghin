@@ -27,7 +27,6 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { Virtuoso } from 'react-virtuoso';
 import {
-  IconArrowBackUp,
   IconArrowDown,
   IconArrowUp,
   IconCheck,
@@ -41,7 +40,6 @@ import {
   IconSearch,
   IconUpload,
 } from '@tabler/icons-react';
-import { modals } from '@mantine/modals';
 import {
   useSearchParams,
   useRouter,
@@ -52,7 +50,6 @@ import type { CommitInfo, FileDiff } from '@/lib/git';
 import {
   getLog,
   getCommitDiff,
-  revertCommit,
   pullAndMergeMain,
   pushChanges,
   fetchRemotes as apiFetchRemotes,
@@ -284,26 +281,6 @@ export const HistoryView: FunctionComponent<{
       }
     },
     [selectedHash, setSelectedHash],
-  );
-
-  const handleRevert = useCallback(
-    (commit: CommitInfo) => {
-      modals.openConfirmModal({
-        title: 'Revert commit',
-        children: (
-          <Text size="sm">
-            Revert &quot;{commit.message}&quot; ({commit.shortHash})?
-          </Text>
-        ),
-        labels: { confirm: 'Revert', cancel: 'Cancel' },
-        confirmProps: { color: 'red' },
-        onConfirm: async () => {
-          await revertCommit(repoPath, commit.hash);
-          refreshCommits();
-        },
-      });
-    },
-    [repoPath, refreshCommits],
   );
 
   const handlePullMerge = useCallback(async () => {
@@ -759,19 +736,6 @@ export const HistoryView: FunctionComponent<{
                   minute: '2-digit',
                 })}
               </Text>
-
-              <Tooltip label="Revert">
-                <ActionIcon
-                  size="xs"
-                  variant="subtle"
-                  color="red"
-                  mx="xs"
-                  style={{ flexShrink: 0 }}
-                  onClick={() => handleRevert(commit)}
-                >
-                  <IconArrowBackUp size={12} />
-                </ActionIcon>
-              </Tooltip>
             </Box>
           );
         }}
