@@ -762,14 +762,6 @@ export const ChangesView: FunctionComponent<{
       >
         <Group align="flex-end" gap="sm">
           <Stack gap={4} style={{ flex: 1 }}>
-            {showNewBranch && (
-              <TextInput
-                size="xs"
-                placeholder="New branch name"
-                value={newBranchName}
-                onChange={(e) => setNewBranchName(e.currentTarget.value)}
-              />
-            )}
             <Group gap="xs" align="flex-end" wrap="nowrap">
               <IconGitBranch
                 size={14}
@@ -801,10 +793,10 @@ export const ChangesView: FunctionComponent<{
             </Group>
           </Stack>
           <Group gap="xs">
-            <Tooltip label="Auto-push after commit">
+            <Tooltip label="Push after commit">
               <Switch
                 size="xs"
-                label="Auto-push"
+                label="Push"
                 checked={autoPush}
                 onChange={(e) => handleAutoPushToggle(e.currentTarget.checked)}
               />
@@ -820,10 +812,7 @@ export const ChangesView: FunctionComponent<{
             <Button
               size="sm"
               variant="light"
-              onClick={() => {
-                setShowNewBranch(true);
-                handleCommit();
-              }}
+              onClick={openNewBranch}
               loading={committing}
               disabled={!commitMsg.trim() || status.stagedFiles.length === 0}
             >
@@ -845,6 +834,34 @@ export const ChangesView: FunctionComponent<{
         repoPath={repoPath}
         onSwitch={onRefresh}
       />
+
+      <Modal
+        opened={newBranchOpened}
+        onClose={closeNewBranch}
+        title="Commit to New Branch"
+      >
+        <Stack>
+          <TextInput
+            label="Branch name"
+            placeholder="feature/my-branch"
+            value={newBranchName}
+            onChange={(e) => setNewBranchName(e.currentTarget.value)}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeNewBranch}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCommitToNewBranch}
+              loading={committing}
+              disabled={!newBranchName.trim()}
+            >
+              Commit
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 };
