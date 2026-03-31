@@ -8,11 +8,13 @@ datasource db {
 }
 
 model Repository {
-  id        String   @id @default(cuid())
-  name      String
-  path      String   @unique
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String
+  path         String   @unique
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  autoFetch    Boolean  @default(false)
+  fetchRemotes String   @default("")
 }
 
 model Setting {

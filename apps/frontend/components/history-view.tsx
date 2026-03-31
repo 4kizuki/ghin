@@ -19,6 +19,10 @@ import {
   Button,
   Indicator,
   Notification,
+  Popover,
+  Switch,
+  Checkbox,
+  Divider,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Virtuoso } from 'react-virtuoso';
@@ -27,7 +31,9 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconCheck,
+  IconChevronDown,
   IconCopy,
+  IconDownload,
   IconFileCode,
   IconGitBranch,
   IconGitMerge,
@@ -49,6 +55,9 @@ import {
   revertCommit,
   pullAndMergeMain,
   pushChanges,
+  fetchRemotes as apiFetchRemotes,
+  getRemotes as apiGetRemotes,
+  updateAutoFetch,
 } from '@/lib/api';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
@@ -56,6 +65,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { computeGraphLayout } from '@/lib/graph-layout';
 import { CommitGraphRow, ROW_HEIGHT } from '@/components/commit-graph';
 import { useRepoStatus } from '@/contexts/repo-status-context';
+import { usePolling } from '@/hooks/use-polling';
 import { SearchDialog } from '@/components/search-dialog';
 import { BranchSwitcher } from '@/components/branch-switcher';
 
@@ -64,7 +74,14 @@ const noop = async (): Promise<void> => {};
 export const HistoryView: FunctionComponent<{
   repoPath: string;
   initialCommits?: CommitInfo[];
-}> = ({ repoPath, initialCommits }) => {
+  initialAutoFetch?: boolean;
+  initialFetchRemotes?: string[];
+}> = ({
+  repoPath,
+  initialCommits,
+  initialAutoFetch = false,
+  initialFetchRemotes = [],
+}) => {
   const PAGE_SIZE = 200;
   const [commits, setCommits] = useState<CommitInfo[]>(initialCommits ?? []);
   const [loading, setLoading] = useState(!initialCommits);
@@ -93,6 +110,13 @@ export const HistoryView: FunctionComponent<{
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
+
+  // Fetch state
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [autoFetch, setAutoFetch] = useState(initialAutoFetch);
+  const [selectedRemotes, setSelectedRemotes] =
+    useState<string[]>(initialFetchRemotes);
+  const [availableRemotes, setAvailableRemotes] = useState<string[]>([]);
 
   const showCopyFeedback = useCallback((e: React.MouseEvent, text: string) => {
     navigator.clipboard.writeText(text);
@@ -178,6 +202,55 @@ export const HistoryView: FunctionComponent<{
       setLoadingMore(false);
     }
   }, [repoPath, commits.length, hasMore]);
+
+  // ─── Fetch handlers ─────────────────────────────────────────────────
+
+  const handleFetch = useCallback(async () => {
+    setFetchLoading(true);
+    try {
+      await apiFetchRemotes(repoPath, selectedRemotes);
+      await refreshStatus();
+      await refreshCommits();
+    } catch (e) {
+      setNotification({
+        message: e instanceof Error ? e.message : 'Fetch failed',
+        color: 'red',
+      });
+    } finally {
+      setFetchLoading(false);
+    }
+  }, [repoPath, selectedRemotes, refreshStatus, refreshCommits]);
+
+  const handleAutoFetchToggle = useCallback(
+    (checked: boolean) => {
+      setAutoFetch(checked);
+      updateAutoFetch(params.repoId, checked, selectedRemotes);
+    },
+    [params.repoId, selectedRemotes],
+  );
+
+  const handleRemoteToggle = useCallback(
+    (remote: string, checked: boolean) => {
+      const next = checked
+        ? [...selectedRemotes, remote]
+        : selectedRemotes.filter((r) => r !== remote);
+      setSelectedRemotes(next);
+      updateAutoFetch(params.repoId, autoFetch, next);
+    },
+    [params.repoId, autoFetch, selectedRemotes],
+  );
+
+  const loadRemotes = useCallback(async () => {
+    try {
+      const result = await apiGetRemotes(repoPath);
+      setAvailableRemotes(result.remotes);
+    } catch {
+      // silently fail
+    }
+  }, [repoPath]);
+
+  // Auto-refresh commits when auto-fetch is enabled
+  usePolling(refreshCommits, 60_000, autoFetch);
 
   // Load diff when selectedHash changes (including on initial load from URL)
   useEffect(() => {
@@ -388,6 +461,56 @@ export const HistoryView: FunctionComponent<{
         </Group>
 
         <Group gap="xs">
+          <Button.Group>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconDownload size={14} />}
+              onClick={handleFetch}
+              loading={fetchLoading}
+            >
+              Fetch
+            </Button>
+            <Popover position="bottom-end" onOpen={loadRemotes}>
+              <Popover.Target>
+                <Button size="xs" variant="light" px={4}>
+                  <IconChevronDown size={14} />
+                </Button>
+              </Popover.Target>
+              <Popover.Dropdown>
+                <Stack gap="xs">
+                  <Switch
+                    size="xs"
+                    label="Auto Fetch (60s)"
+                    checked={autoFetch}
+                    onChange={(e) =>
+                      handleAutoFetchToggle(e.currentTarget.checked)
+                    }
+                  />
+                  <Divider />
+                  <Text size="xs" fw={600} c="dimmed">
+                    Remotes
+                  </Text>
+                  {availableRemotes.map((remote) => (
+                    <Checkbox
+                      key={remote}
+                      size="xs"
+                      label={remote}
+                      checked={selectedRemotes.includes(remote)}
+                      onChange={(e) =>
+                        handleRemoteToggle(remote, e.currentTarget.checked)
+                      }
+                    />
+                  ))}
+                  {availableRemotes.length === 0 && (
+                    <Text size="xs" c="dimmed">
+                      Loading...
+                    </Text>
+                  )}
+                </Stack>
+              </Popover.Dropdown>
+            </Popover>
+          </Button.Group>
           <Button
             size="xs"
             variant="light"

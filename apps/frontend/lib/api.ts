@@ -216,6 +216,34 @@ export const getCommitDiff = (
     `/api/git/commit-diff?repo=${encodeURIComponent(repo)}&hash=${encodeURIComponent(hash)}`,
   );
 
+// ─── Fetch ──────────────────────────────────────────────────────────
+
+export const fetchRemotes = (
+  repo: string,
+  remotes: string[],
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, remotes }),
+  });
+
+export const getRemotes = (repo: string): Promise<{ remotes: string[] }> =>
+  fetchJson(`/api/git/remotes?repo=${encodeURIComponent(repo)}`);
+
+// ─── Auto Fetch ─────────────────────────────────────────────────────
+
+export const updateAutoFetch = (
+  repoId: string,
+  autoFetch: boolean,
+  fetchRemotesValue: string[],
+): Promise<{ ok: boolean }> =>
+  fetchJson(`/api/repositories/${repoId}/auto-fetch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ autoFetch, fetchRemotes: fetchRemotesValue }),
+  });
+
 // ─── Settings ───────────────────────────────────────────────────────
 
 export const getSettings = (): Promise<Record<string, string>> =>

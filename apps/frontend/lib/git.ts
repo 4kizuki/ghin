@@ -699,6 +699,21 @@ const getGraphLog = async (
   );
 };
 
+const getRemotes = async (cwd: string): Promise<string[]> => {
+  const output = await exec(['remote'], cwd);
+  return output.trim().split('\n').filter(Boolean);
+};
+
+const fetchRemotes = async (cwd: string, remotes: string[]): Promise<void> => {
+  if (remotes.length === 0) {
+    await exec(['fetch', '--all'], cwd);
+  } else {
+    for (const remote of remotes) {
+      await exec(['fetch', remote], cwd);
+    }
+  }
+};
+
 export const git = {
   getStatus,
   getDiff,
@@ -724,4 +739,6 @@ export const git = {
   revertCommit,
   getCommitDiff,
   getGraphLog,
+  getRemotes,
+  fetchRemotes,
 };
