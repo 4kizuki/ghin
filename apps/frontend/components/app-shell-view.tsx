@@ -12,13 +12,15 @@ import {
   TextInput,
   Button,
   Box,
+  Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconMenu2, IconX } from '@tabler/icons-react';
+import { IconMenu2, IconSearch, IconX } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import type { Repository } from '@/lib/api';
 import { addRepository, removeRepository } from '@/lib/api';
+import { SearchDialog } from '@/components/search-dialog';
 import { ShortcutsHelp } from '@/components/shortcuts-help';
 import { RepoDrawer } from '@/components/repo-drawer';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
@@ -37,6 +39,8 @@ export const AppShellView: FunctionComponent<{
   const [drawerOpened, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(false);
   const [helpOpened, { open: openHelp, close: closeHelp }] =
+    useDisclosure(false);
+  const [searchOpened, { open: openSearch, close: closeSearch }] =
     useDisclosure(false);
   const [newName, setNewName] = useState('');
   const [newPath, setNewPath] = useState('');
@@ -186,37 +190,58 @@ export const AppShellView: FunctionComponent<{
           minHeight: 0,
         }}
       >
-        <Tabs.List>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            mx={4}
-            onClick={openDrawer}
-            style={{ alignSelf: 'center' }}
-          >
-            <IconMenu2 size={18} />
-          </ActionIcon>
-          {visibleRepos.map((repo) => (
-            <Tabs.Tab
-              key={repo.id}
-              value={repo.id}
-              rightSection={
-                <Box
-                  component="span"
-                  style={{ cursor: 'pointer', display: 'inline-flex' }}
-                  onClick={(e: React.MouseEvent) => {
-                    e.stopPropagation();
-                    handleCloseTab(repo.id);
-                  }}
-                >
-                  <IconX size={12} />
-                </Box>
-              }
+        <Group
+          wrap="nowrap"
+          gap={0}
+          justify="space-between"
+          style={(theme) => ({
+            borderBottom: `2px solid ${theme.colors.gray[2]}`,
+          })}
+        >
+          <Tabs.List style={{ flexWrap: 'nowrap', borderBottom: 'none' }}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              mx={4}
+              onClick={openDrawer}
+              style={{ alignSelf: 'center' }}
             >
-              {repo.name}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
+              <IconMenu2 size={18} />
+            </ActionIcon>
+            {visibleRepos.map((repo) => (
+              <Tabs.Tab
+                key={repo.id}
+                value={repo.id}
+                rightSection={
+                  <Box
+                    component="span"
+                    style={{ cursor: 'pointer', display: 'inline-flex' }}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      handleCloseTab(repo.id);
+                    }}
+                  >
+                    <IconX size={12} />
+                  </Box>
+                }
+              >
+                {repo.name}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+          <Tooltip label="Search (⌘K)" openDelay={400}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              mx={4}
+              style={{}}
+              onClick={openSearch}
+              disabled={!activeRepo}
+            >
+              <IconSearch size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
 
         {activeRepo && (
           <Box style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
@@ -281,6 +306,12 @@ export const AppShellView: FunctionComponent<{
       </Modal>
 
       <ShortcutsHelp opened={helpOpened} onClose={closeHelp} />
+
+      <SearchDialog
+        opened={searchOpened}
+        onClose={closeSearch}
+        repoPath={activeRepo?.path ?? ''}
+      />
     </Box>
   );
 };
