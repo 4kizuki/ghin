@@ -15,6 +15,7 @@
     "@mantine/core": "8.3.15",
     "@mantine/hooks": "8.3.15",
     "@mantine/modals": "8.3.17",
+    "@mantine/notifications": "8.3.18",
     "@repo/database": "workspace:*",
     "@repo/env-picker": "workspace:*",
     "@repo/never-error": "workspace:*",

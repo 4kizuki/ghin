@@ -39,6 +39,7 @@ import {
   IconPlus,
   IconMinus,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useRouter, useParams } from 'next/navigation';
 import type { RepoStatus, FileChange, FileDiff } from '@/lib/git';
 import {
@@ -143,7 +144,6 @@ export const ChangesView: FunctionComponent<{
     { open: openPushConfirm, close: closePushConfirm },
   ] = useDisclosure(false);
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
-  const [loadingRemoteUrl, setLoadingRemoteUrl] = useState(false);
   const [pushBranchName, setPushBranchName] = useState('');
 
   const totalChanges =
@@ -257,15 +257,14 @@ export const ChangesView: FunctionComponent<{
     await onRefresh();
   }, [repoPath, stagedEntries, onRefresh]);
 
-  const fetchRemoteUrlInfo = useCallback(async () => {
-    setLoadingRemoteUrl(true);
+  const fetchRemoteUrlInfo = useCallback(async (): Promise<boolean> => {
     try {
       const result = await getRemoteUrl(repoPath, 'origin');
       setRemoteUrl(result.url);
+      return true;
     } catch {
       setRemoteUrl(null);
-    } finally {
-      setLoadingRemoteUrl(false);
+      return false;
     }
   }, [repoPath]);
 
@@ -313,11 +312,25 @@ export const ChangesView: FunctionComponent<{
     closePushConfirm,
   ]);
 
-  const handleCommit = useCallback(() => {
+  const showNoOriginError = useCallback(() => {
+    notifications.show({
+      title: 'Push できません',
+      message:
+        'remote "origin" が設定されていません。push するにはリモートを追加してください。',
+      color: 'red',
+      style: { marginBottom: 80 },
+    });
+  }, []);
+
+  const handleCommit = useCallback(async () => {
     if (!commitMsg.trim()) return;
     if (autoPush) {
       setPushBranchName('');
-      fetchRemoteUrlInfo();
+      const ok = await fetchRemoteUrlInfo();
+      if (!ok) {
+        showNoOriginError();
+        return;
+      }
       openPushConfirm();
     } else {
       handleCommitDirect();
@@ -326,17 +339,22 @@ export const ChangesView: FunctionComponent<{
     commitMsg,
     autoPush,
     fetchRemoteUrlInfo,
+    showNoOriginError,
     openPushConfirm,
     handleCommitDirect,
   ]);
 
-  const handleOpenNewBranch = useCallback(() => {
+  const handleOpenNewBranch = useCallback(async () => {
     setPushBranchName('');
     if (autoPush) {
-      fetchRemoteUrlInfo();
+      const ok = await fetchRemoteUrlInfo();
+      if (!ok) {
+        showNoOriginError();
+        return;
+      }
     }
     openNewBranch();
-  }, [autoPush, fetchRemoteUrlInfo, openNewBranch]);
+  }, [autoPush, fetchRemoteUrlInfo, showNoOriginError, openNewBranch]);
 
   const handleCommitToNewBranch = useCallback(async () => {
     if (!commitMsg.trim() || !newBranchName.trim()) return;
@@ -940,44 +958,35 @@ export const ChangesView: FunctionComponent<{
           {autoPush && (
             <>
               <Divider label="Push destination" labelPosition="left" />
-              {loadingRemoteUrl ? (
+              <Stack gap="xs">
                 <Group gap="xs">
-                  <Loader size="xs" />
-                  <Text size="sm" c="dimmed">
-                    Loading remote info...
+                  <Text size="sm" fw={500}>
+                    Remote:
                   </Text>
+                  <Text size="sm">origin</Text>
+                  {remoteUrl && (
+                    <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
+                      {remoteUrl}
+                    </Code>
+                  )}
                 </Group>
-              ) : (
-                <Stack gap="xs">
-                  <Group gap="xs">
-                    <Text size="sm" fw={500}>
-                      Remote:
-                    </Text>
-                    <Text size="sm">origin</Text>
-                    {remoteUrl && (
-                      <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
-                        {remoteUrl}
-                      </Code>
-                    )}
-                  </Group>
-                  <TextInput
-                    label="Remote branch name"
-                    description="origin/ に push されるブランチ名"
-                    placeholder={newBranchName || 'feature/my-branch'}
-                    value={pushBranchName}
-                    onChange={(e) => setPushBranchName(e.currentTarget.value)}
-                    rightSection={
-                      <Badge size="xs" color="green" variant="light">
-                        new
-                      </Badge>
-                    }
-                    rightSectionWidth={40}
-                  />
-                  <Text size="xs" c="dimmed">
-                    push to: origin/{pushBranchName || newBranchName || '...'}
-                  </Text>
-                </Stack>
-              )}
+                <TextInput
+                  label="Remote branch name"
+                  description="origin/ に push されるブランチ名"
+                  placeholder={newBranchName || 'feature/my-branch'}
+                  value={pushBranchName}
+                  onChange={(e) => setPushBranchName(e.currentTarget.value)}
+                  rightSection={
+                    <Badge size="xs" color="green" variant="light">
+                      new
+                    </Badge>
+                  }
+                  rightSectionWidth={40}
+                />
+                <Text size="xs" c="dimmed">
+                  push to: origin/{pushBranchName || newBranchName || '...'}
+                </Text>
+              </Stack>
             </>
           )}
           <Group justify="flex-end">
@@ -1001,54 +1010,45 @@ export const ChangesView: FunctionComponent<{
         title="Push Confirmation"
       >
         <Stack>
-          {loadingRemoteUrl ? (
+          <Stack gap="xs">
             <Group gap="xs">
-              <Loader size="xs" />
-              <Text size="sm" c="dimmed">
-                Loading remote info...
+              <Text size="sm" fw={500}>
+                Remote:
               </Text>
+              <Text size="sm">origin</Text>
+              {remoteUrl && (
+                <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
+                  {remoteUrl}
+                </Code>
+              )}
             </Group>
-          ) : (
-            <Stack gap="xs">
+            {status.upstream ? (
               <Group gap="xs">
                 <Text size="sm" fw={500}>
-                  Remote:
+                  Push to:
                 </Text>
-                <Text size="sm">origin</Text>
-                {remoteUrl && (
-                  <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
-                    {remoteUrl}
-                  </Code>
-                )}
+                <Text size="sm">{status.upstream}</Text>
               </Group>
-              {status.upstream ? (
-                <Group gap="xs">
-                  <Text size="sm" fw={500}>
-                    Push to:
-                  </Text>
-                  <Text size="sm">{status.upstream}</Text>
-                </Group>
-              ) : (
-                <TextInput
-                  label="Remote branch name"
-                  description="upstream 未設定のため、新しい remote branch を作成します"
-                  placeholder={status.branch}
-                  value={pushBranchName}
-                  onChange={(e) => setPushBranchName(e.currentTarget.value)}
-                  rightSection={
-                    <Badge size="xs" color="green" variant="light">
-                      new
-                    </Badge>
-                  }
-                  rightSectionWidth={40}
-                />
-              )}
-              <Text size="xs" c="dimmed">
-                push to:{' '}
-                {status.upstream ?? `origin/${pushBranchName || status.branch}`}
-              </Text>
-            </Stack>
-          )}
+            ) : (
+              <TextInput
+                label="Remote branch name"
+                description="upstream 未設定のため、新しい remote branch を作成します"
+                placeholder={status.branch}
+                value={pushBranchName}
+                onChange={(e) => setPushBranchName(e.currentTarget.value)}
+                rightSection={
+                  <Badge size="xs" color="green" variant="light">
+                    new
+                  </Badge>
+                }
+                rightSectionWidth={40}
+              />
+            )}
+            <Text size="xs" c="dimmed">
+              push to:{' '}
+              {status.upstream ?? `origin/${pushBranchName || status.branch}`}
+            </Text>
+          </Stack>
           <Group justify="flex-end">
             <Button variant="default" onClick={closePushConfirm}>
               Cancel

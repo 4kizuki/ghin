@@ -6,7 +6,9 @@ import {
   mantineHtmlProps,
 } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
+import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 
 export const metadata: Metadata = {
   title: 'Ghin',
@@ -23,6 +25,7 @@ const RootLayout: FunctionComponent<{ children: React.ReactNode }> = ({
       </head>
       <body style={{ margin: 0 }}>
         <MantineProvider>
+          <Notifications position="bottom-right" />
           <ModalsProvider>{children}</ModalsProvider>
         </MantineProvider>
       </body>
