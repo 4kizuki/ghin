@@ -5,12 +5,15 @@ Local Git client built with Next.js. Manage repositories, view diffs, browse com
 ## Setup
 
 ```bash
-pnpm install
-pnpm db:push
+pnpm install --frozen-lockfile
+pnpm db:migrate
+pnpm db:generate
 pnpm dev:frontend
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+データは `~/.ghin/database.sqlite3` に保存される。
 
 ## Commands
 
@@ -18,6 +21,8 @@ Open [http://localhost:3000](http://localhost:3000).
 pnpm dev:frontend    # Dev server
 pnpm build           # Build all packages
 pnpm checks          # Lint, typecheck, format check, test
+pnpm db:migrate      # Run database migrations
+pnpm db:generate     # Generate Prisma client
 pnpm db:studio       # Prisma Studio
 ```
 
@@ -25,7 +30,7 @@ pnpm db:studio       # Prisma Studio
 
 - **Framework**: Next.js 16 / React 19
 - **UI**: Mantine 8
-- **DB**: SQLite (Prisma)
+- **DB**: SQLite via Prisma (`~/.ghin/`)
 - **Monorepo**: pnpm + Turborepo
 
 ## Security

@@ -15,6 +15,7 @@
     "checks": "turbo run typecheck build lint test format:check",
     "db:migrate": "pnpm --filter @repo/database db:migrate",
     "db:push": "pnpm --filter @repo/database db:push",
+    "db:generate": "pnpm --filter @repo/database build",
     "db:studio": "pnpm --filter @repo/database db:studio"
   },
   "pnpm": {
