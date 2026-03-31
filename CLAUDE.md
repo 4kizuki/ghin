@@ -41,6 +41,7 @@ pnpm checks            # 全チェック一括実行
 - 本プロジェクトでは特殊な TypeScript および React の規約を採用している。そのため、特に以下のスキルは実装前に必ず読むこと。
   - Typescript Convention
   - React Component
+  - CSS Layout Convention
 
 # 禁止事項
 - pnpm 環境のため、 `npx` を禁止する。たとえば、 `npx tsc` の代わりにトップレベルの `pnpm typecheck` を用いよ
