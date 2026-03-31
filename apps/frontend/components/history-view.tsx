@@ -123,7 +123,7 @@ export const HistoryView: FunctionComponent<{
   });
 
   const headIndex = useMemo(
-    () => commits.findIndex((c) => c.refs.some((r) => r.includes('HEAD'))),
+    () => commits.findIndex((c) => c.refs.some((r) => r.startsWith('HEAD'))),
     [commits],
   );
 
