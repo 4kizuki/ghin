@@ -32,9 +32,6 @@ import {
   IconArrowLeft,
   IconArrowUp,
   IconArrowDown,
-  IconGitMerge,
-  IconUpload,
-  IconSearch,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useRouter, useParams } from 'next/navigation';
@@ -47,15 +44,12 @@ import {
   unstagePatch,
   commitChanges,
   setSetting,
-  pullAndMergeMain,
-  pushChanges,
   getRemoteUrl,
 } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
 import { NeverError } from '@repo/never-error';
-import { SearchDialog } from '@/components/search-dialog';
 import { BranchSwitcher } from '@/components/branch-switcher';
 
 type FileEntry = {
@@ -125,13 +119,10 @@ export const ChangesView: FunctionComponent<{
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const commitInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState<{
     message: string;
     color: string;
   } | null>(null);
-  const [searchOpened, { open: openSearch, close: closeSearch }] =
-    useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
   const [newBranchOpened, { open: openNewBranch, close: closeNewBranch }] =
@@ -391,47 +382,6 @@ export const ChangesView: FunctionComponent<{
     setSetting('autoPush', String(checked));
   }, []);
 
-  const handlePullMerge = useCallback(async () => {
-    setActionLoading(true);
-    try {
-      const result = await pullAndMergeMain(repoPath);
-      if (result.hasConflicts) {
-        setNotification({
-          message: 'Merge conflicts detected. Please resolve in VSCode.',
-          color: 'yellow',
-        });
-      } else if (!result.success) {
-        setNotification({ message: result.output, color: 'red' });
-      } else {
-        setNotification({ message: 'Pull & merge successful', color: 'green' });
-      }
-      await onRefresh();
-    } catch (e) {
-      setNotification({
-        message: e instanceof Error ? e.message : 'Pull & merge failed',
-        color: 'red',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  }, [repoPath, onRefresh]);
-
-  const handlePush = useCallback(async () => {
-    setActionLoading(true);
-    try {
-      await pushChanges(repoPath, !status.upstream);
-      setNotification({ message: 'Push successful', color: 'green' });
-      await onRefresh();
-    } catch (e) {
-      setNotification({
-        message: e instanceof Error ? e.message : 'Push failed',
-        color: 'red',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  }, [repoPath, status.upstream, onRefresh]);
-
   const shortcuts = useMemo(
     () => [
       {
@@ -474,10 +424,6 @@ export const ChangesView: FunctionComponent<{
         meta: true,
         handler: handleCommit,
       },
-      { key: 'k', meta: true, handler: openSearch },
-      { key: 'p', meta: true, handler: openSearch },
-      { key: 'm', meta: true, shift: true, handler: handlePullMerge },
-      { key: 'p', meta: true, shift: true, handler: handlePush },
       { key: 'b', meta: true, handler: openBranch },
     ],
     [
@@ -486,9 +432,6 @@ export const ChangesView: FunctionComponent<{
       handleFileToggle,
       handleCommit,
       loadDiff,
-      openSearch,
-      handlePullMerge,
-      handlePush,
       openBranch,
     ],
   );
@@ -662,33 +605,6 @@ export const ChangesView: FunctionComponent<{
               { label: 'N', value: 'n' },
             ]}
           />
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconSearch size={14} />}
-            onClick={openSearch}
-          >
-            Search
-          </Button>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconGitMerge size={14} />}
-            onClick={handlePullMerge}
-            loading={actionLoading}
-          >
-            Pull & Merge
-          </Button>
-          <Button
-            size="xs"
-            variant="light"
-            color={status.ahead > 0 ? 'orange' : undefined}
-            leftSection={<IconUpload size={14} />}
-            onClick={handlePush}
-            loading={actionLoading}
-          >
-            Push
-          </Button>
         </Group>
       </Group>
 
@@ -905,12 +821,6 @@ export const ChangesView: FunctionComponent<{
           </Group>
         </Group>
       </Box>
-
-      <SearchDialog
-        opened={searchOpened}
-        onClose={closeSearch}
-        repoPath={repoPath}
-      />
 
       <BranchSwitcher
         opened={branchOpened}
