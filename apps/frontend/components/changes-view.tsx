@@ -110,7 +110,17 @@ export const ChangesView: FunctionComponent<{
   onRefresh: () => Promise<void>;
   initialAutoPush: boolean;
   aiEnabled: boolean;
-}> = ({ repoPath, status, onRefresh, initialAutoPush, aiEnabled }) => {
+  defaultAuthorName: string;
+  defaultAuthorEmail: string;
+}> = ({
+  repoPath,
+  status,
+  onRefresh,
+  initialAutoPush,
+  aiEnabled,
+  defaultAuthorName,
+  defaultAuthorEmail,
+}) => {
   const router = useRouter();
   const params = useParams<{ repoId: string }>();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -275,15 +285,15 @@ export const ChangesView: FunctionComponent<{
   const handleIdentityError = useCallback(
     (error: unknown, retryAction: () => Promise<void>) => {
       if (error instanceof IdentityUnknownError) {
-        setIdentityName(error.userName ?? '');
-        setIdentityEmail(error.userEmail ?? '');
+        setIdentityName(error.userName ?? defaultAuthorName);
+        setIdentityEmail(error.userEmail ?? defaultAuthorEmail);
         setPendingCommitAction(() => retryAction);
         openIdentity();
         return true;
       }
       return false;
     },
-    [openIdentity],
+    [openIdentity, defaultAuthorName, defaultAuthorEmail],
   );
 
   const handleCommitDirect = useCallback(async () => {

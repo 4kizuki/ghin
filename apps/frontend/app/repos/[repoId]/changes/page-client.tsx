@@ -9,7 +9,14 @@ import { ChangesView } from '@/components/changes-view';
 export const ChangesPageClient: FunctionComponent<{
   initialAutoPush: boolean;
   aiEnabled: boolean;
-}> = ({ initialAutoPush, aiEnabled }) => {
+  defaultAuthorName: string;
+  defaultAuthorEmail: string;
+}> = ({
+  initialAutoPush,
+  aiEnabled,
+  defaultAuthorName,
+  defaultAuthorEmail,
+}) => {
   const { repoPath, status, refreshStatus } = useRepoStatus();
 
   useEffect(() => {
@@ -31,6 +38,8 @@ export const ChangesPageClient: FunctionComponent<{
       onRefresh={refreshStatus}
       initialAutoPush={initialAutoPush}
       aiEnabled={aiEnabled}
+      defaultAuthorName={defaultAuthorName}
+      defaultAuthorEmail={defaultAuthorEmail}
     />
   );
 };

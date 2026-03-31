@@ -3,10 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { ChangesPageClient } from './page-client';
 
 const Page: FunctionComponent = async () => {
-  const [autoPushRow, aiEnabledRow] = await Promise.all([
-    prisma.setting.findUnique({ where: { key: 'autoPush' } }),
-    prisma.setting.findUnique({ where: { key: 'aiEnabled' } }),
-  ]);
+  const [autoPushRow, aiEnabledRow, authorNameRow, authorEmailRow] =
+    await Promise.all([
+      prisma.setting.findUnique({ where: { key: 'autoPush' } }),
+      prisma.setting.findUnique({ where: { key: 'aiEnabled' } }),
+      prisma.setting.findUnique({ where: { key: 'defaultAuthorName' } }),
+      prisma.setting.findUnique({ where: { key: 'defaultAuthorEmail' } }),
+    ]);
   const initialAutoPush = autoPushRow?.value === 'true';
   const aiEnabled = aiEnabledRow?.value === 'true';
 
@@ -14,6 +17,8 @@ const Page: FunctionComponent = async () => {
     <ChangesPageClient
       initialAutoPush={initialAutoPush}
       aiEnabled={aiEnabled}
+      defaultAuthorName={authorNameRow?.value ?? ''}
+      defaultAuthorEmail={authorEmailRow?.value ?? ''}
     />
   );
 };

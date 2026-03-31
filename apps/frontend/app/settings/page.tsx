@@ -9,7 +9,17 @@ const DEFAULT_PROVIDER = 'codex';
 
 const SettingsPage: FunctionComponent = async () => {
   const rows = await prisma.setting.findMany({
-    where: { key: { in: ['aiEnabled', 'aiProvider', 'aiModel'] } },
+    where: {
+      key: {
+        in: [
+          'aiEnabled',
+          'aiProvider',
+          'aiModel',
+          'defaultAuthorName',
+          'defaultAuthorEmail',
+        ],
+      },
+    },
   });
   const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -23,6 +33,8 @@ const SettingsPage: FunctionComponent = async () => {
         initialAiEnabled={settings['aiEnabled'] === 'true'}
         initialAiProvider={settings['aiProvider'] ?? DEFAULT_PROVIDER}
         initialAiModel={settings['aiModel'] ?? DEFAULT_MODEL}
+        initialDefaultAuthorName={settings['defaultAuthorName'] ?? ''}
+        initialDefaultAuthorEmail={settings['defaultAuthorEmail'] ?? ''}
       />
     </Container>
   );

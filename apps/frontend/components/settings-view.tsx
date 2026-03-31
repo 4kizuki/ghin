@@ -10,6 +10,7 @@ import {
   Text,
   Anchor,
   Group,
+  Divider,
 } from '@mantine/core';
 import { setSetting } from '@/lib/api';
 
@@ -28,7 +29,15 @@ export const SettingsView: FunctionComponent<{
   initialAiEnabled: boolean;
   initialAiProvider: string;
   initialAiModel: string;
-}> = ({ initialAiEnabled, initialAiProvider, initialAiModel }) => {
+  initialDefaultAuthorName: string;
+  initialDefaultAuthorEmail: string;
+}> = ({
+  initialAiEnabled,
+  initialAiProvider,
+  initialAiModel,
+  initialDefaultAuthorName,
+  initialDefaultAuthorEmail,
+}) => {
   const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
   const [aiProvider, setAiProvider] = useState(initialAiProvider);
   const [selectValue, setSelectValue] = useState(
@@ -37,6 +46,8 @@ export const SettingsView: FunctionComponent<{
   const [customModel, setCustomModel] = useState(
     isPresetModel(initialAiModel) ? '' : initialAiModel,
   );
+  const [authorName, setAuthorName] = useState(initialDefaultAuthorName);
+  const [authorEmail, setAuthorEmail] = useState(initialDefaultAuthorEmail);
 
   const handleAiEnabledChange = useCallback((checked: boolean) => {
     setAiEnabled(checked);
@@ -68,6 +79,16 @@ export const SettingsView: FunctionComponent<{
     if (value) {
       setSetting('aiModel', value);
     }
+  }, []);
+
+  const handleAuthorNameChange = useCallback((value: string) => {
+    setAuthorName(value);
+    setSetting('defaultAuthorName', value);
+  }, []);
+
+  const handleAuthorEmailChange = useCallback((value: string) => {
+    setAuthorEmail(value);
+    setSetting('defaultAuthorEmail', value);
   }, []);
 
   return (
@@ -122,6 +143,31 @@ export const SettingsView: FunctionComponent<{
           </Anchor>
         </Group>
       </Stack>
+
+      <Divider />
+
+      <Text fw={600} size="lg">
+        Default Author
+      </Text>
+
+      <TextInput
+        label="Name"
+        placeholder="Your Name"
+        value={authorName}
+        onChange={(e) => handleAuthorNameChange(e.currentTarget.value)}
+      />
+
+      <TextInput
+        label="Email"
+        placeholder="you@example.com"
+        value={authorEmail}
+        onChange={(e) => handleAuthorEmailChange(e.currentTarget.value)}
+      />
+
+      <Text size="xs" c="dimmed">
+        リポジトリに user.name / user.email
+        が未設定の場合、この値がプリフィルされます。
+      </Text>
     </Stack>
   );
 };
