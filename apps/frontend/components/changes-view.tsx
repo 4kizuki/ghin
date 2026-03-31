@@ -8,6 +8,7 @@ import {
   Text,
   Checkbox,
   ScrollArea,
+  Textarea,
   TextInput,
   Button,
   Switch,
@@ -121,7 +122,7 @@ export const ChangesView: FunctionComponent<{
   const [autoPush, setAutoPush] = useState(initialAutoPush);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
-  const commitInputRef = useRef<HTMLInputElement>(null);
+  const commitInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState<{
@@ -745,17 +746,6 @@ export const ChangesView: FunctionComponent<{
       >
         <Group align="flex-end" gap="sm">
           <Stack gap={4} style={{ flex: 1 }}>
-            <Group gap="xs">
-              <IconGitBranch size={14} />
-              <Text size="xs" fw={600}>
-                {status.branch}
-              </Text>
-              {status.stagedFiles.length > 0 && (
-                <Badge size="xs" color="green" variant="light">
-                  {status.stagedFiles.length} staged
-                </Badge>
-              )}
-            </Group>
             {showNewBranch && (
               <TextInput
                 size="xs"
@@ -764,18 +754,35 @@ export const ChangesView: FunctionComponent<{
                 onChange={(e) => setNewBranchName(e.currentTarget.value)}
               />
             )}
-            <TextInput
-              placeholder="Commit message"
-              size="sm"
-              value={commitMsg}
-              onChange={(e) => setCommitMsg(e.currentTarget.value)}
-              ref={commitInputRef}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  handleCommit();
-                }
-              }}
-            />
+            <Group gap="xs" align="flex-end" wrap="nowrap">
+              <IconGitBranch
+                size={14}
+                style={{ flexShrink: 0, marginBottom: 6 }}
+              />
+              <Text
+                size="xs"
+                fw={600}
+                style={{ flexShrink: 0, marginBottom: 6 }}
+              >
+                {status.branch}
+              </Text>
+              <Textarea
+                placeholder="Commit message (Enter: newline, ⌘+Enter: commit)"
+                size="xs"
+                autosize
+                minRows={1}
+                value={commitMsg}
+                onChange={(e) => setCommitMsg(e.currentTarget.value)}
+                ref={commitInputRef}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleCommit();
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+            </Group>
           </Stack>
           <Group gap="xs">
             <Tooltip label="Auto-push after commit">
