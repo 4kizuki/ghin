@@ -389,10 +389,12 @@ export const ChangesView: FunctionComponent<{
       {/* Status Bar */}
       <Group
         px="md"
-        py="xs"
         justify="space-between"
         style={(theme) => ({
           borderBottom: `1px solid ${theme.colors.gray[3]}`,
+          height: 51,
+          flex: '0 0 51px',
+          alignItems: 'center',
         })}
       >
         <Group gap="sm">

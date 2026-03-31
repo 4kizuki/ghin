@@ -30,8 +30,8 @@ import {
   IconCopy,
   IconFileCode,
   IconGitBranch,
-  IconGitCommit,
   IconGitMerge,
+  IconPlus,
   IconSearch,
   IconUpload,
 } from '@tabler/icons-react';
@@ -308,19 +308,41 @@ export const HistoryView: FunctionComponent<{
       {/* Status Bar */}
       <Group
         px="md"
-        py="xs"
         justify="space-between"
         style={(theme) => ({
           borderBottom: `1px solid ${theme.colors.gray[3]}`,
+          height: 51,
+          flex: '0 0 51px',
+          alignItems: 'center',
         })}
       >
         <Group gap="sm">
-          <Group gap={4}>
-            <IconGitBranch size={16} />
-            <Text fw={600} size="sm">
-              {status?.branch ?? '...'}
-            </Text>
-          </Group>
+          <Indicator
+            label={totalChanges}
+            size={16}
+            disabled={totalChanges === 0}
+            color="violet"
+            offset={4}
+          >
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => router.push(`/repos/${params.repoId}/changes`)}
+            >
+              Changes
+            </Button>
+          </Indicator>
+          <Button
+            variant="subtle"
+            color="dark"
+            size="sm"
+            px="xs"
+            leftSection={<IconGitBranch size={16} />}
+            onClick={openBranch}
+          >
+            {status?.branch ?? '...'}
+          </Button>
           {status && status.ahead > 0 && (
             <Tooltip label={`${status.ahead} unpushed`}>
               <Badge
@@ -345,21 +367,19 @@ export const HistoryView: FunctionComponent<{
               </Badge>
             </Tooltip>
           )}
-          {status && status.branch !== 'main' && status.aheadOfMain > 0 && (
-            <Badge color="gray" variant="light" size="sm">
-              main +{status.aheadOfMain}
-            </Badge>
-          )}
-          {status && status.branch !== 'main' && status.behindMain > 0 && (
-            <Badge color="gray" variant="light" size="sm">
-              main -{status.behindMain}
-            </Badge>
-          )}
-          {totalChanges > 0 && (
-            <Badge color="violet" variant="light" size="sm">
-              {totalChanges} changes
-            </Badge>
-          )}
+          {status &&
+            status.branch !== 'main' &&
+            (status.aheadOfMain > 0 || status.behindMain > 0) && (
+              <Badge color="gray" variant="light" size="sm">
+                main:{' '}
+                {[
+                  status.aheadOfMain > 0 && `+${status.aheadOfMain}`,
+                  status.behindMain > 0 && `-${status.behindMain}`,
+                ]
+                  .filter(Boolean)
+                  .join(' / ')}
+              </Badge>
+            )}
           {status?.hasConflicts && (
             <Badge color="red" variant="filled" size="sm">
               CONFLICTS
@@ -395,22 +415,6 @@ export const HistoryView: FunctionComponent<{
           >
             Push
           </Button>
-          <Indicator
-            label={totalChanges}
-            size={16}
-            disabled={totalChanges === 0}
-            color="violet"
-            offset={4}
-          >
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconGitCommit size={14} />}
-              onClick={() => router.push(`/repos/${params.repoId}/changes`)}
-            >
-              Commit
-            </Button>
-          </Indicator>
         </Group>
       </Group>
 
