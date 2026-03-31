@@ -1,7 +1,7 @@
 'use client';
 
-import type { FunctionComponent } from 'react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import type { FunctionComponent, ReactNode } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Tabs,
   Group,
@@ -16,43 +16,44 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { IconPlus, IconX } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import type { Repository } from '@/lib/api';
-import { listRepositories, addRepository, removeRepository } from '@/lib/api';
-import { RepoView } from '@/components/repo-view';
+import { addRepository, removeRepository } from '@/lib/api';
 import { ShortcutsHelp } from '@/components/shortcuts-help';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 
-export const AppShellView: FunctionComponent = () => {
-  const [repos, setRepos] = useState<Repository[]>([]);
-  const [activeTab, setActiveTab] = useState<string | null>(null);
+export const AppShellView: FunctionComponent<{
+  repos: Repository[];
+  children: ReactNode;
+}> = ({ repos, children }) => {
+  const params = useParams<{ repoId?: string }>();
+  const router = useRouter();
+  const pathname = usePathname();
+  const repoId = params.repoId ?? null;
+
   const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
   const [helpOpened, { open: openHelp, close: closeHelp }] =
     useDisclosure(false);
   const [newName, setNewName] = useState('');
   const [newPath, setNewPath] = useState('');
 
-  const loadRepos = useCallback(async () => {
-    const data = await listRepositories();
-    setRepos(data);
-    if (data.length > 0 && !activeTab) {
-      setActiveTab(data[0].id);
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    loadRepos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const navigateToRepo = useCallback(
+    (id: string) => {
+      const tab = pathname.endsWith('/histories') ? 'histories' : 'changes';
+      router.push(`/repos/${id}/${tab}`);
+    },
+    [router, pathname],
+  );
 
   const handleAdd = useCallback(async () => {
     if (!newName.trim() || !newPath.trim()) return;
     const repo = await addRepository(newName.trim(), newPath.trim());
-    setRepos((prev) => [...prev, repo]);
-    setActiveTab(repo.id);
     setNewName('');
     setNewPath('');
     closeAdd();
-  }, [newName, newPath, closeAdd]);
+    router.refresh();
+    router.push(`/repos/${repo.id}/changes`);
+  }, [newName, newPath, closeAdd, router]);
 
   const handleRemove = useCallback(
     (id: string) => {
@@ -67,22 +68,24 @@ export const AppShellView: FunctionComponent = () => {
         confirmProps: { color: 'red' },
         onConfirm: async () => {
           await removeRepository(id);
-          setRepos((prev) => prev.filter((r) => r.id !== id));
-          if (activeTab === id) {
-            setActiveTab((prev) => {
-              const remaining = repos.filter((r) => r.id !== id);
-              return remaining.length > 0 ? remaining[0].id : null;
-            });
+          router.refresh();
+          if (repoId === id) {
+            const remaining = repos.filter((r) => r.id !== id);
+            if (remaining.length > 0) {
+              router.push(`/repos/${remaining[0].id}/changes`);
+            } else {
+              router.replace('/repos');
+            }
           }
         },
       });
     },
-    [activeTab, repos],
+    [repoId, repos, router],
   );
 
   const activeRepo = useMemo(
-    () => repos.find((r) => r.id === activeTab),
-    [repos, activeTab],
+    () => repos.find((r) => r.id === repoId),
+    [repos, repoId],
   );
 
   const shortcuts = useMemo(
@@ -91,10 +94,10 @@ export const AppShellView: FunctionComponent = () => {
       ...repos.slice(0, 9).map((repo, i) => ({
         key: String(i + 1),
         meta: true,
-        handler: () => setActiveTab(repo.id),
+        handler: () => navigateToRepo(repo.id),
       })),
     ],
-    [repos, openHelp],
+    [repos, openHelp, navigateToRepo],
   );
 
   useKeyboardShortcuts(shortcuts);
@@ -109,8 +112,10 @@ export const AppShellView: FunctionComponent = () => {
       }}
     >
       <Tabs
-        value={activeTab}
-        onChange={setActiveTab}
+        value={repoId}
+        onChange={(v) => {
+          if (v) navigateToRepo(v);
+        }}
         style={{
           flex: 1,
           display: 'flex',
@@ -144,15 +149,11 @@ export const AppShellView: FunctionComponent = () => {
           </ActionIcon>
         </Tabs.List>
 
-        {repos.map((repo) => (
-          <Tabs.Panel
-            key={repo.id}
-            value={repo.id}
-            style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}
-          >
-            {activeRepo?.id === repo.id && <RepoView repo={repo} />}
-          </Tabs.Panel>
-        ))}
+        {activeRepo && (
+          <Box style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            {children}
+          </Box>
+        )}
 
         {repos.length === 0 && (
           <Stack align="center" justify="center" style={{ flex: 1 }}>

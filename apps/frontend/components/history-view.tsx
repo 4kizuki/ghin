@@ -23,11 +23,12 @@ import { CommitGraphRow, ROW_HEIGHT } from '@/components/commit-graph';
 
 const noop = async (): Promise<void> => {};
 
-export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
-  repoPath,
-}) => {
-  const [commits, setCommits] = useState<CommitInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+export const HistoryView: FunctionComponent<{
+  repoPath: string;
+  initialCommits?: CommitInfo[];
+}> = ({ repoPath, initialCommits }) => {
+  const [commits, setCommits] = useState<CommitInfo[]>(initialCommits ?? []);
+  const [loading, setLoading] = useState(!initialCommits);
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
@@ -164,7 +165,7 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
                       {commit.author}
                     </Text>
                     <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                      {new Date(commit.date).toLocaleDateString()}
+                      {new Date(commit.date).toLocaleDateString('ja-JP')}
                     </Text>
                   </Group>
                   {commit.refs.length > 0 && (
@@ -237,7 +238,7 @@ export const HistoryView: FunctionComponent<{ repoPath: string }> = ({
                   {selectedCommit.author}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {new Date(selectedCommit.date).toLocaleString()}
+                  {new Date(selectedCommit.date).toLocaleString('ja-JP')}
                 </Text>
               </Group>
             </Box>

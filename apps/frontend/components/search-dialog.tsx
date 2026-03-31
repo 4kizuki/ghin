@@ -140,7 +140,7 @@ const SearchContent: FunctionComponent<{
                     {commit.author}
                   </Text>
                   <Text size="xs" c="dimmed">
-                    {new Date(commit.date).toLocaleDateString()}
+                    {new Date(commit.date).toLocaleDateString('ja-JP')}
                   </Text>
                 </Group>
                 {commit.refs.length > 0 && (
