@@ -5,6 +5,7 @@ import { git } from '@/lib/git';
 const bodySchema = z.object({
   repo: z.string().min(1),
   setUpstream: z.boolean().default(false),
+  remoteBranch: z.string().optional(),
 });
 
 export const POST = async (request: Request): Promise<NextResponse> => {
@@ -14,6 +15,10 @@ export const POST = async (request: Request): Promise<NextResponse> => {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
 
-  const output = await git.push(parsed.data.repo, parsed.data.setUpstream);
+  const output = await git.push(
+    parsed.data.repo,
+    parsed.data.setUpstream,
+    parsed.data.remoteBranch,
+  );
   return NextResponse.json({ ok: true, output });
 };

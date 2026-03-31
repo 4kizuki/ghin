@@ -20,6 +20,8 @@ import {
   Modal,
   SegmentedControl,
   Notification,
+  Divider,
+  Code,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -49,6 +51,7 @@ import {
   setSetting,
   pullAndMergeMain,
   pushChanges,
+  getRemoteUrl,
 } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
@@ -135,6 +138,13 @@ export const ChangesView: FunctionComponent<{
     useDisclosure(false);
   const [newBranchOpened, { open: openNewBranch, close: closeNewBranch }] =
     useDisclosure(false);
+  const [
+    pushConfirmOpened,
+    { open: openPushConfirm, close: closePushConfirm },
+  ] = useDisclosure(false);
+  const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
+  const [loadingRemoteUrl, setLoadingRemoteUrl] = useState(false);
+  const [pushBranchName, setPushBranchName] = useState('');
 
   const totalChanges =
     status.stagedFiles.length +
@@ -247,11 +257,23 @@ export const ChangesView: FunctionComponent<{
     await onRefresh();
   }, [repoPath, stagedEntries, onRefresh]);
 
-  const handleCommit = useCallback(async () => {
+  const fetchRemoteUrlInfo = useCallback(async () => {
+    setLoadingRemoteUrl(true);
+    try {
+      const result = await getRemoteUrl(repoPath, 'origin');
+      setRemoteUrl(result.url);
+    } catch {
+      setRemoteUrl(null);
+    } finally {
+      setLoadingRemoteUrl(false);
+    }
+  }, [repoPath]);
+
+  const handleCommitDirect = useCallback(async () => {
     if (!commitMsg.trim()) return;
     setCommitting(true);
     try {
-      await commitChanges(repoPath, commitMsg.trim(), undefined, autoPush);
+      await commitChanges(repoPath, commitMsg.trim(), undefined, false);
       setCommitMsg('');
       await onRefresh();
     } catch {
@@ -259,20 +281,79 @@ export const ChangesView: FunctionComponent<{
     } finally {
       setCommitting(false);
     }
-  }, [repoPath, commitMsg, autoPush, onRefresh]);
+  }, [repoPath, commitMsg, onRefresh]);
+
+  const handleCommitAndPush = useCallback(async () => {
+    if (!commitMsg.trim()) return;
+    setCommitting(true);
+    const effectivePushBranch =
+      !status.upstream && pushBranchName ? pushBranchName : undefined;
+    try {
+      await commitChanges(
+        repoPath,
+        commitMsg.trim(),
+        undefined,
+        true,
+        effectivePushBranch,
+      );
+      setCommitMsg('');
+      closePushConfirm();
+      await onRefresh();
+    } catch {
+      // error handled via notification in parent
+    } finally {
+      setCommitting(false);
+    }
+  }, [
+    repoPath,
+    commitMsg,
+    status.upstream,
+    pushBranchName,
+    onRefresh,
+    closePushConfirm,
+  ]);
+
+  const handleCommit = useCallback(() => {
+    if (!commitMsg.trim()) return;
+    if (autoPush) {
+      setPushBranchName('');
+      fetchRemoteUrlInfo();
+      openPushConfirm();
+    } else {
+      handleCommitDirect();
+    }
+  }, [
+    commitMsg,
+    autoPush,
+    fetchRemoteUrlInfo,
+    openPushConfirm,
+    handleCommitDirect,
+  ]);
+
+  const handleOpenNewBranch = useCallback(() => {
+    setPushBranchName('');
+    if (autoPush) {
+      fetchRemoteUrlInfo();
+    }
+    openNewBranch();
+  }, [autoPush, fetchRemoteUrlInfo, openNewBranch]);
 
   const handleCommitToNewBranch = useCallback(async () => {
     if (!commitMsg.trim() || !newBranchName.trim()) return;
     setCommitting(true);
+    const effectivePushBranch =
+      autoPush && pushBranchName ? pushBranchName : undefined;
     try {
       await commitChanges(
         repoPath,
         commitMsg.trim(),
         newBranchName.trim(),
         autoPush,
+        effectivePushBranch,
       );
       setCommitMsg('');
       setNewBranchName('');
+      setPushBranchName('');
       closeNewBranch();
       await onRefresh();
     } catch {
@@ -280,7 +361,15 @@ export const ChangesView: FunctionComponent<{
     } finally {
       setCommitting(false);
     }
-  }, [repoPath, commitMsg, newBranchName, autoPush, onRefresh, closeNewBranch]);
+  }, [
+    repoPath,
+    commitMsg,
+    newBranchName,
+    autoPush,
+    pushBranchName,
+    onRefresh,
+    closeNewBranch,
+  ]);
 
   const handleAutoPushToggle = useCallback((checked: boolean) => {
     setAutoPush(checked);
@@ -812,7 +901,7 @@ export const ChangesView: FunctionComponent<{
             <Button
               size="sm"
               variant="light"
-              onClick={openNewBranch}
+              onClick={handleOpenNewBranch}
               loading={committing}
               disabled={!commitMsg.trim() || status.stagedFiles.length === 0}
             >
@@ -848,6 +937,49 @@ export const ChangesView: FunctionComponent<{
             onChange={(e) => setNewBranchName(e.currentTarget.value)}
             data-autofocus
           />
+          {autoPush && (
+            <>
+              <Divider label="Push destination" labelPosition="left" />
+              {loadingRemoteUrl ? (
+                <Group gap="xs">
+                  <Loader size="xs" />
+                  <Text size="sm" c="dimmed">
+                    Loading remote info...
+                  </Text>
+                </Group>
+              ) : (
+                <Stack gap="xs">
+                  <Group gap="xs">
+                    <Text size="sm" fw={500}>
+                      Remote:
+                    </Text>
+                    <Text size="sm">origin</Text>
+                    {remoteUrl && (
+                      <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
+                        {remoteUrl}
+                      </Code>
+                    )}
+                  </Group>
+                  <TextInput
+                    label="Remote branch name"
+                    description="origin/ に push されるブランチ名"
+                    placeholder={newBranchName || 'feature/my-branch'}
+                    value={pushBranchName}
+                    onChange={(e) => setPushBranchName(e.currentTarget.value)}
+                    rightSection={
+                      <Badge size="xs" color="green" variant="light">
+                        new
+                      </Badge>
+                    }
+                    rightSectionWidth={40}
+                  />
+                  <Text size="xs" c="dimmed">
+                    push to: origin/{pushBranchName || newBranchName || '...'}
+                  </Text>
+                </Stack>
+              )}
+            </>
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={closeNewBranch}>
               Cancel
@@ -857,7 +989,72 @@ export const ChangesView: FunctionComponent<{
               loading={committing}
               disabled={!newBranchName.trim()}
             >
-              Commit
+              {autoPush ? 'Commit & Push' : 'Commit'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={pushConfirmOpened}
+        onClose={closePushConfirm}
+        title="Push Confirmation"
+      >
+        <Stack>
+          {loadingRemoteUrl ? (
+            <Group gap="xs">
+              <Loader size="xs" />
+              <Text size="sm" c="dimmed">
+                Loading remote info...
+              </Text>
+            </Group>
+          ) : (
+            <Stack gap="xs">
+              <Group gap="xs">
+                <Text size="sm" fw={500}>
+                  Remote:
+                </Text>
+                <Text size="sm">origin</Text>
+                {remoteUrl && (
+                  <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
+                    {remoteUrl}
+                  </Code>
+                )}
+              </Group>
+              {status.upstream ? (
+                <Group gap="xs">
+                  <Text size="sm" fw={500}>
+                    Push to:
+                  </Text>
+                  <Text size="sm">{status.upstream}</Text>
+                </Group>
+              ) : (
+                <TextInput
+                  label="Remote branch name"
+                  description="upstream 未設定のため、新しい remote branch を作成します"
+                  placeholder={status.branch}
+                  value={pushBranchName}
+                  onChange={(e) => setPushBranchName(e.currentTarget.value)}
+                  rightSection={
+                    <Badge size="xs" color="green" variant="light">
+                      new
+                    </Badge>
+                  }
+                  rightSectionWidth={40}
+                />
+              )}
+              <Text size="xs" c="dimmed">
+                push to:{' '}
+                {status.upstream ?? `origin/${pushBranchName || status.branch}`}
+              </Text>
+            </Stack>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closePushConfirm}>
+              Cancel
+            </Button>
+            <Button onClick={handleCommitAndPush} loading={committing}>
+              Commit & Push
             </Button>
           </Group>
         </Stack>

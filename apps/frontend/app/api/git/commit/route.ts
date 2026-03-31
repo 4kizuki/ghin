@@ -7,6 +7,7 @@ const bodySchema = z.object({
   message: z.string().min(1),
   newBranch: z.string().optional(),
   autoPush: z.boolean().default(false),
+  pushBranch: z.string().optional(),
 });
 
 export const POST = async (request: Request): Promise<NextResponse> => {
@@ -23,7 +24,7 @@ export const POST = async (request: Request): Promise<NextResponse> => {
   const output = await git.commit(parsed.data.repo, parsed.data.message);
 
   if (parsed.data.autoPush) {
-    await git.push(parsed.data.repo, true);
+    await git.push(parsed.data.repo, true, parsed.data.pushBranch);
   }
 
   return NextResponse.json({ ok: true, output });

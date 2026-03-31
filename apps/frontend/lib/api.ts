@@ -124,11 +124,12 @@ export const commitChanges = (
   message: string,
   newBranch?: string,
   autoPush?: boolean,
+  pushBranch?: string,
 ): Promise<{ ok: boolean; output: string }> =>
   fetchJson('/api/git/commit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo, message, newBranch, autoPush }),
+    body: JSON.stringify({ repo, message, newBranch, autoPush, pushBranch }),
   });
 
 // ─── Push ───────────────────────────────────────────────────────────
@@ -136,11 +137,12 @@ export const commitChanges = (
 export const pushChanges = (
   repo: string,
   setUpstream?: boolean,
+  remoteBranch?: string,
 ): Promise<{ ok: boolean; output: string }> =>
   fetchJson('/api/git/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo, setUpstream }),
+    body: JSON.stringify({ repo, setUpstream, remoteBranch }),
   });
 
 // ─── Pull & Merge ───────────────────────────────────────────────────
@@ -230,6 +232,14 @@ export const fetchRemotes = (
 
 export const getRemotes = (repo: string): Promise<{ remotes: string[] }> =>
   fetchJson(`/api/git/remotes?repo=${encodeURIComponent(repo)}`);
+
+export const getRemoteUrl = (
+  repo: string,
+  remote: string,
+): Promise<{ url: string }> =>
+  fetchJson(
+    `/api/git/remote-url?repo=${encodeURIComponent(repo)}&remote=${encodeURIComponent(remote)}`,
+  );
 
 // ─── Auto Fetch ─────────────────────────────────────────────────────
 

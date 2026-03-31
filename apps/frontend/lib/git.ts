@@ -500,11 +500,21 @@ const commit = async (cwd: string, message: string): Promise<string> => {
   return output;
 };
 
-const push = async (cwd: string, setUpstream?: boolean): Promise<string> => {
+const push = async (
+  cwd: string,
+  setUpstream?: boolean,
+  remoteBranch?: string,
+): Promise<string> => {
   const args = ['push'];
   if (setUpstream) {
-    const branch = await exec(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
-    args.push('-u', 'origin', branch.trim());
+    const localBranch = (
+      await exec(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+    ).trim();
+    if (remoteBranch && remoteBranch !== localBranch) {
+      args.push('-u', 'origin', `${localBranch}:${remoteBranch}`);
+    } else {
+      args.push('-u', 'origin', localBranch);
+    }
   }
   return exec(args, cwd);
 };
@@ -699,6 +709,11 @@ const getGraphLog = async (
   );
 };
 
+const getRemoteUrl = async (cwd: string, remote: string): Promise<string> => {
+  const output = await exec(['remote', 'get-url', remote], cwd);
+  return output.trim();
+};
+
 const getRemotes = async (cwd: string): Promise<string[]> => {
   const output = await exec(['remote'], cwd);
   return output.trim().split('\n').filter(Boolean);
@@ -739,6 +754,7 @@ export const git = {
   revertCommit,
   getCommitDiff,
   getGraphLog,
+  getRemoteUrl,
   getRemotes,
   fetchRemotes,
 };
