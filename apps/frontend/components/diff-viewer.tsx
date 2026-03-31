@@ -392,7 +392,7 @@ export const DiffViewer: FunctionComponent<{
   onUnstageHunk,
 }) => (
   <Virtuoso
-    style={{ height: '100%' }}
+    style={{ height: '100%', overscrollBehavior: 'none' }}
     data={files}
     itemContent={(_index, file) => (
       <FileDiffSection

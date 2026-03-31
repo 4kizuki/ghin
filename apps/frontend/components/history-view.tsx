@@ -451,9 +451,12 @@ export const HistoryView: FunctionComponent<{
         styles={{
           content: {
             borderLeft: '2px solid var(--mantine-color-gray-4)',
-            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           },
           header: {
+            flex: '0 0 auto',
             alignItems: 'flex-start',
             overflow: 'hidden',
           },
@@ -463,7 +466,7 @@ export const HistoryView: FunctionComponent<{
             overflow: 'hidden',
           },
           body: {
-            height: 'calc(100% - 80px)',
+            flex: '1 1 0',
             overflow: 'hidden',
           },
         }}
