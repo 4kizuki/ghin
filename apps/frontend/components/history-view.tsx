@@ -47,21 +47,19 @@ export const HistoryView: FunctionComponent<{
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copyFadeRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const showCopyFeedback = useCallback(
-    (e: React.MouseEvent, text: string) => {
-      navigator.clipboard.writeText(text);
-      clearTimeout(copyTimerRef.current);
-      clearTimeout(copyFadeRef.current);
-      const rect = e.currentTarget.getBoundingClientRect();
-      setCopyFeedback({ x: rect.right + 4, y: rect.bottom - 4, fading: false });
-      copyFadeRef.current = setTimeout(
-        () => setCopyFeedback((prev) => (prev ? { ...prev, fading: true } : null)),
-        250,
-      );
-      copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 750);
-    },
-    [],
-  );
+  const showCopyFeedback = useCallback((e: React.MouseEvent, text: string) => {
+    navigator.clipboard.writeText(text);
+    clearTimeout(copyTimerRef.current);
+    clearTimeout(copyFadeRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setCopyFeedback({ x: rect.right + 4, y: rect.bottom - 4, fading: false });
+    copyFadeRef.current = setTimeout(
+      () =>
+        setCopyFeedback((prev) => (prev ? { ...prev, fading: true } : null)),
+      250,
+    );
+    copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 750);
+  }, []);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -210,24 +208,58 @@ export const HistoryView: FunctionComponent<{
 
               <CommitGraphRow node={node} maxLane={graphLayout.maxLane} />
 
-              <Text
-                size="xs"
-                fw={500}
-                truncate="end"
-                style={{ flex: 1, minWidth: 0 }}
+              <Box
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget;
+                  el.style.cursor =
+                    el.scrollWidth > el.clientWidth ? 'ew-resize' : '';
+                }}
+                style={{
+                  display: 'flex',
+                  flex: 1,
+                  minWidth: 0,
+                  alignItems: 'center',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  scrollbarWidth: 'none',
+                }}
               >
-                {commit.message}
-              </Text>
+                <HoverCard position="top" shadow="sm" withinPortal>
+                  <HoverCard.Target>
+                    <Text
+                      size="xs"
+                      fw={500}
+                      truncate="end"
+                      style={{ flexShrink: 1, minWidth: 100 }}
+                    >
+                      {commit.message}
+                    </Text>
+                  </HoverCard.Target>
+                  <HoverCard.Dropdown p="xs">
+                    <Text
+                      size="xs"
+                      style={{ maxWidth: 400, wordBreak: 'break-word' }}
+                    >
+                      {commit.message}
+                    </Text>
+                  </HoverCard.Dropdown>
+                </HoverCard>
 
-              {commit.refs.length > 0 && (
-                <Group gap={4} wrap="nowrap" ml="xs" style={{ flexShrink: 0 }}>
-                  {commit.refs.map((ref) => (
-                    <Badge key={ref} size="xs" variant="light">
-                      {ref}
-                    </Badge>
-                  ))}
-                </Group>
-              )}
+                {commit.refs.length > 0 && (
+                  <Group
+                    gap={4}
+                    wrap="nowrap"
+                    ml="xs"
+                    style={{ flexShrink: 0 }}
+                  >
+                    {commit.refs.map((ref) => (
+                      <Badge key={ref} size="xs" variant="light">
+                        {ref}
+                      </Badge>
+                    ))}
+                  </Group>
+                )}
+              </Box>
 
               <HoverCard position="top" shadow="sm" withinPortal>
                 <HoverCard.Target>
@@ -315,7 +347,12 @@ export const HistoryView: FunctionComponent<{
                 </HoverCard.Dropdown>
               </HoverCard>
 
-              <Text size="xs" c="dimmed" ml="xs" style={{ flexShrink: 0, width: 130 }}>
+              <Text
+                size="xs"
+                c="dimmed"
+                ml="xs"
+                style={{ flexShrink: 0, width: 130 }}
+              >
                 {new Date(commit.date).toLocaleString('ja-JP', {
                   year: 'numeric',
                   month: '2-digit',
