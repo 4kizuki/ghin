@@ -100,7 +100,9 @@ const exec = (
       (error, stdout, stderr) => {
         if (error) {
           reject(
-            new Error(`git ${args[0]} failed: ${stderr || error.message}`),
+            new Error(
+              `git ${args[0]} failed: ${stderr ? `${stderr}\n${error.message}` : error.message}`,
+            ),
           );
           return;
         }
