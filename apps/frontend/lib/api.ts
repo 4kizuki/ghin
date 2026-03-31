@@ -1,14 +1,115 @@
+import { z } from 'zod';
 import type { RepoStatus, FileDiff, CommitInfo, BranchInfo } from '@/lib/git';
 
-type Repository = {
-  id: string;
-  name: string;
-  path: string;
-  sortOrder: number;
-  createdAt: string;
-};
+// ─── Schemas ───────────────────────────────────────────────────────
+
+const repositorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  sortOrder: z.number(),
+  createdAt: z.string(),
+});
+
+type Repository = z.infer<typeof repositorySchema>;
 
 export type { Repository };
+
+const identityUnknownResponseSchema = z.object({
+  error: z.string(),
+  userName: z.string().nullable(),
+  userEmail: z.string().nullable(),
+});
+
+const fileChangeSchema = z.object({
+  path: z.string(),
+  status: z.union([
+    z.literal('M'),
+    z.literal('A'),
+    z.literal('D'),
+    z.literal('R'),
+    z.literal('C'),
+    z.literal('U'),
+    z.literal('?'),
+    z.literal('!'),
+  ]),
+  staged: z.boolean(),
+  oldPath: z.string().optional(),
+});
+
+const hunkLineSchema = z.object({
+  type: z.union([z.literal('context'), z.literal('add'), z.literal('remove')]),
+  content: z.string(),
+  oldLineNumber: z.number().nullable(),
+  newLineNumber: z.number().nullable(),
+});
+
+const hunkSchema = z.object({
+  header: z.string(),
+  oldStart: z.number(),
+  oldCount: z.number(),
+  newStart: z.number(),
+  newCount: z.number(),
+  lines: z.array(hunkLineSchema),
+});
+
+const fileDiffSchema = z.object({
+  path: z.string(),
+  oldPath: z.string().optional(),
+  hunks: z.array(hunkSchema),
+  isBinary: z.boolean(),
+  isNew: z.boolean(),
+  isDeleted: z.boolean(),
+});
+
+const commitInfoSchema = z.object({
+  hash: z.string(),
+  shortHash: z.string(),
+  author: z.string(),
+  authorEmail: z.string(),
+  date: z.string(),
+  message: z.string(),
+  parents: z.array(z.string()),
+  refs: z.array(z.string()),
+});
+
+const branchInfoSchema = z.object({
+  name: z.string(),
+  current: z.boolean(),
+  upstream: z.string().optional(),
+  aheadBehind: z.object({ ahead: z.number(), behind: z.number() }).optional(),
+});
+
+const repoStatusSchema = z.object({
+  branch: z.string(),
+  upstream: z.string().optional(),
+  ahead: z.number(),
+  behind: z.number(),
+  aheadOfMain: z.number(),
+  behindMain: z.number(),
+  stagedFiles: z.array(fileChangeSchema),
+  unstagedFiles: z.array(fileChangeSchema),
+  untrackedFiles: z.array(fileChangeSchema),
+  hasConflicts: z.boolean(),
+});
+
+const okSchema = z.object({ ok: z.boolean() });
+const okOutputSchema = z.object({ ok: z.boolean(), output: z.string() });
+const mergeResultSchema = z.object({
+  success: z.boolean(),
+  output: z.string(),
+  hasConflicts: z.boolean(),
+});
+const branchesResponseSchema = z.object({
+  branches: z.array(z.string()),
+});
+const remotesResponseSchema = z.object({
+  remotes: z.array(z.string()),
+});
+const urlResponseSchema = z.object({ url: z.string() });
+const settingsResponseSchema = z.record(z.string(), z.string());
+
+// ─── Errors ────────────────────────────────────────────────────────
 
 export class IdentityUnknownError extends Error {
   readonly userName: string | null;
@@ -20,47 +121,51 @@ export class IdentityUnknownError extends Error {
   }
 }
 
-const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+// ─── Fetch ─────────────────────────────────────────────────────────
+
+const fetchJson = async <T>(
+  url: string,
+  schema: z.ZodType<T>,
+  init?: RequestInit,
+): Promise<T> => {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     if (res.status === 422 && body.includes('identity_unknown')) {
-      // eslint-disable-next-line @repo/typescript-convention/no-type-assertion -- JSON.parse returns unknown, we validate the shape via instanceof check above
-      const parsed = JSON.parse(body) as {
-        error: string;
-        userName: string | null;
-        userEmail: string | null;
-      };
+      const parsed = identityUnknownResponseSchema.parse(JSON.parse(body));
       throw new IdentityUnknownError(parsed.userName, parsed.userEmail);
     }
     throw new Error(`API error ${res.status}: ${body}`);
   }
-  // eslint-disable-next-line @repo/typescript-convention/no-type-assertion -- Response.json() returns Promise<unknown>, generic cast needed for API client
-  return res.json() as Promise<T>;
+  const json: unknown = await res.json();
+  return schema.parse(json);
 };
 
 // ─── Repository ─────────────────────────────────────────────────────
 
 export const listRepositories = (): Promise<Repository[]> =>
-  fetchJson('/api/repositories');
+  fetchJson('/api/repositories', z.array(repositorySchema));
 
 export const addRepository = (
   name: string,
   path: string,
 ): Promise<Repository> =>
-  fetchJson('/api/repositories', {
+  fetchJson('/api/repositories', repositorySchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, path }),
   });
 
 export const removeRepository = (id: string): Promise<{ ok: boolean }> =>
-  fetchJson(`/api/repositories/${id}`, { method: 'DELETE' });
+  fetchJson(`/api/repositories/${id}`, okSchema, { method: 'DELETE' });
 
 // ─── Git Status ─────────────────────────────────────────────────────
 
 export const getStatus = (repo: string): Promise<RepoStatus> =>
-  fetchJson(`/api/git/status?repo=${encodeURIComponent(repo)}`);
+  fetchJson(
+    `/api/git/status?repo=${encodeURIComponent(repo)}`,
+    repoStatusSchema,
+  );
 
 // ─── Git Diff ───────────────────────────────────────────────────────
 
@@ -71,7 +176,10 @@ export const getDiff = (
 ): Promise<FileDiff[]> => {
   const params = new URLSearchParams({ repo, staged: String(staged) });
   if (file) params.set('file', file);
-  return fetchJson(`/api/git/diff?${params.toString()}`);
+  return fetchJson(
+    `/api/git/diff?${params.toString()}`,
+    z.array(fileDiffSchema),
+  );
 };
 
 // ─── Git Log ────────────────────────────────────────────────────────
@@ -86,13 +194,19 @@ export const getLog = (
   if (maxCount !== undefined) params.set('maxCount', String(maxCount));
   if (skip !== undefined) params.set('skip', String(skip));
   if (branch) params.set('branch', branch);
-  return fetchJson(`/api/git/log?${params.toString()}`);
+  return fetchJson(
+    `/api/git/log?${params.toString()}`,
+    z.array(commitInfoSchema),
+  );
 };
 
 // ─── Branches ───────────────────────────────────────────────────────
 
 export const getBranches = (repo: string): Promise<BranchInfo[]> =>
-  fetchJson(`/api/git/branches?repo=${encodeURIComponent(repo)}`);
+  fetchJson(
+    `/api/git/branches?repo=${encodeURIComponent(repo)}`,
+    z.array(branchInfoSchema),
+  );
 
 // ─── Branches Containing ────────────────────────────────────────────
 
@@ -102,6 +216,7 @@ export const getBranchesContaining = (
 ): Promise<{ branches: string[] }> =>
   fetchJson(
     `/api/git/branches-containing?repo=${encodeURIComponent(repo)}&hash=${encodeURIComponent(hash)}`,
+    branchesResponseSchema,
   );
 
 // ─── Create Branch ─────────────────────────────────────────────────
@@ -111,7 +226,7 @@ export const createBranch = (
   name: string,
   startPoint?: string,
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/create-branch', {
+  fetchJson('/api/git/create-branch', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, name, startPoint }),
@@ -123,7 +238,7 @@ export const stagePaths = (
   repo: string,
   paths: string[],
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/stage', {
+  fetchJson('/api/git/stage', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, paths }),
@@ -133,7 +248,7 @@ export const stagePatch = (
   repo: string,
   patch: string,
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/stage', {
+  fetchJson('/api/git/stage', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, patch }),
@@ -143,7 +258,7 @@ export const unstagePaths = (
   repo: string,
   paths: string[],
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/unstage', {
+  fetchJson('/api/git/unstage', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, paths }),
@@ -153,7 +268,7 @@ export const unstagePatch = (
   repo: string,
   patch: string,
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/unstage', {
+  fetchJson('/api/git/unstage', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, patch }),
@@ -168,7 +283,7 @@ export const commitChanges = (
   autoPush?: boolean,
   pushBranch?: string,
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/commit', {
+  fetchJson('/api/git/commit', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, message, newBranch, autoPush, pushBranch }),
@@ -181,7 +296,7 @@ export const pushChanges = (
   setUpstream?: boolean,
   remoteBranch?: string,
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/push', {
+  fetchJson('/api/git/push', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, setUpstream, remoteBranch }),
@@ -192,7 +307,7 @@ export const pushChanges = (
 export const pullAndMergeMain = (
   repo: string,
 ): Promise<{ success: boolean; output: string; hasConflicts: boolean }> =>
-  fetchJson('/api/git/pull-merge', {
+  fetchJson('/api/git/pull-merge', mergeResultSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo }),
@@ -204,7 +319,7 @@ export const mergeRef = (
   repo: string,
   ref: string,
 ): Promise<{ success: boolean; output: string; hasConflicts: boolean }> =>
-  fetchJson('/api/git/merge', {
+  fetchJson('/api/git/merge', mergeResultSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, ref }),
@@ -217,7 +332,7 @@ export const resetToCommit = (
   hash: string,
   mode: 'hard' | 'mixed' | 'soft',
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/reset', {
+  fetchJson('/api/git/reset', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, hash, mode }),
@@ -229,7 +344,7 @@ export const checkoutRef = (
   repo: string,
   ref: string,
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/checkout', {
+  fetchJson('/api/git/checkout', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, ref }),
@@ -240,13 +355,16 @@ export const checkoutRef = (
 export const getMergedBranches = (
   repo: string,
 ): Promise<{ branches: string[] }> =>
-  fetchJson(`/api/git/branch-cleanup?repo=${encodeURIComponent(repo)}`);
+  fetchJson(
+    `/api/git/branch-cleanup?repo=${encodeURIComponent(repo)}`,
+    branchesResponseSchema,
+  );
 
 export const deleteMergedBranches = (
   repo: string,
   branches: string[],
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/branch-cleanup', {
+  fetchJson('/api/git/branch-cleanup', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, branches }),
@@ -260,7 +378,10 @@ export const searchGit = (
   query: string,
 ): Promise<CommitInfo[]> => {
   const params = new URLSearchParams({ repo, type, query });
-  return fetchJson(`/api/git/search?${params.toString()}`);
+  return fetchJson(
+    `/api/git/search?${params.toString()}`,
+    z.array(commitInfoSchema),
+  );
 };
 
 // ─── Revert ─────────────────────────────────────────────────────────
@@ -269,7 +390,7 @@ export const revertCommit = (
   repo: string,
   hash: string,
 ): Promise<{ ok: boolean; output: string }> =>
-  fetchJson('/api/git/revert', {
+  fetchJson('/api/git/revert', okOutputSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, hash }),
@@ -283,6 +404,7 @@ export const getCommitDiff = (
 ): Promise<FileDiff[]> =>
   fetchJson(
     `/api/git/commit-diff?repo=${encodeURIComponent(repo)}&hash=${encodeURIComponent(hash)}`,
+    z.array(fileDiffSchema),
   );
 
 // ─── Fetch ──────────────────────────────────────────────────────────
@@ -291,14 +413,17 @@ export const fetchRemotes = (
   repo: string,
   remotes: string[],
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/fetch', {
+  fetchJson('/api/git/fetch', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, remotes }),
   });
 
 export const getRemotes = (repo: string): Promise<{ remotes: string[] }> =>
-  fetchJson(`/api/git/remotes?repo=${encodeURIComponent(repo)}`);
+  fetchJson(
+    `/api/git/remotes?repo=${encodeURIComponent(repo)}`,
+    remotesResponseSchema,
+  );
 
 export const getRemoteUrl = (
   repo: string,
@@ -306,6 +431,7 @@ export const getRemoteUrl = (
 ): Promise<{ url: string }> =>
   fetchJson(
     `/api/git/remote-url?repo=${encodeURIComponent(repo)}&remote=${encodeURIComponent(remote)}`,
+    urlResponseSchema,
   );
 
 // ─── Auto Fetch ─────────────────────────────────────────────────────
@@ -315,7 +441,7 @@ export const updateAutoFetch = (
   autoFetch: boolean,
   fetchRemotesValue: string[],
 ): Promise<{ ok: boolean }> =>
-  fetchJson(`/api/repositories/${repoId}/auto-fetch`, {
+  fetchJson(`/api/repositories/${repoId}/auto-fetch`, okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ autoFetch, fetchRemotes: fetchRemotesValue }),
@@ -324,13 +450,13 @@ export const updateAutoFetch = (
 // ─── Settings ───────────────────────────────────────────────────────
 
 export const getSettings = (): Promise<Record<string, string>> =>
-  fetchJson('/api/settings');
+  fetchJson('/api/settings', settingsResponseSchema);
 
 export const setSetting = (
   key: string,
   value: string,
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/settings', {
+  fetchJson('/api/settings', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
@@ -343,7 +469,7 @@ export const setGitConfig = (
   key: string,
   value: string,
 ): Promise<{ ok: boolean }> =>
-  fetchJson('/api/git/config', {
+  fetchJson('/api/git/config', okSchema, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, key, value }),
