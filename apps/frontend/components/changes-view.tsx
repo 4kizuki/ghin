@@ -17,14 +17,23 @@ import {
   Badge,
   Loader,
   SegmentedControl,
+  Notification,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconGitBranch,
   IconFile,
   IconFilePlus,
   IconFileOff,
   IconFileDiff,
+  IconArrowLeft,
+  IconArrowUp,
+  IconArrowDown,
+  IconGitMerge,
+  IconUpload,
+  IconSearch,
 } from '@tabler/icons-react';
+import { useRouter, useParams } from 'next/navigation';
 import type { RepoStatus, FileChange, FileDiff } from '@/lib/git';
 import {
   getDiff,
@@ -35,11 +44,15 @@ import {
   commitChanges,
   getSettings,
   setSetting,
+  pullAndMergeMain,
+  pushChanges,
 } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
 import { NeverError } from '@repo/never-error';
+import { SearchDialog } from '@/components/search-dialog';
+import { BranchSwitcher } from '@/components/branch-switcher';
 
 type FileEntry = {
   path: string;
@@ -94,6 +107,8 @@ export const ChangesView: FunctionComponent<{
   status: RepoStatus;
   onRefresh: () => Promise<void>;
 }> = ({ repoPath, status, onRefresh }) => {
+  const router = useRouter();
+  const params = useParams<{ repoId: string }>();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedFileStaged, setSelectedFileStaged] = useState(false);
   const [diff, setDiff] = useState<FileDiff[]>([]);
@@ -107,12 +122,27 @@ export const ChangesView: FunctionComponent<{
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const commitInputRef = useRef<HTMLInputElement>(null);
 
+  const [actionLoading, setActionLoading] = useState(false);
+  const [notification, setNotification] = useState<{
+    message: string;
+    color: string;
+  } | null>(null);
+  const [searchOpened, { open: openSearch, close: closeSearch }] =
+    useDisclosure(false);
+  const [branchOpened, { open: openBranch, close: closeBranch }] =
+    useDisclosure(false);
+
   // Load auto-push setting
   useState(() => {
     getSettings().then((s) => {
       if (s['autoPush'] === 'true') setAutoPush(true);
     });
   });
+
+  const totalChanges =
+    status.stagedFiles.length +
+    status.unstagedFiles.length +
+    status.untrackedFiles.length;
 
   const files = useMemo((): FileEntry[] => {
     const entries: FileEntry[] = [];
@@ -241,6 +271,47 @@ export const ChangesView: FunctionComponent<{
     setSetting('autoPush', String(checked));
   }, []);
 
+  const handlePullMerge = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const result = await pullAndMergeMain(repoPath);
+      if (result.hasConflicts) {
+        setNotification({
+          message: 'Merge conflicts detected. Please resolve in VSCode.',
+          color: 'yellow',
+        });
+      } else if (!result.success) {
+        setNotification({ message: result.output, color: 'red' });
+      } else {
+        setNotification({ message: 'Pull & merge successful', color: 'green' });
+      }
+      await onRefresh();
+    } catch (e) {
+      setNotification({
+        message: e instanceof Error ? e.message : 'Pull & merge failed',
+        color: 'red',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [repoPath, onRefresh]);
+
+  const handlePush = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      await pushChanges(repoPath, !status.upstream);
+      setNotification({ message: 'Push successful', color: 'green' });
+      await onRefresh();
+    } catch (e) {
+      setNotification({
+        message: e instanceof Error ? e.message : 'Push failed',
+        color: 'red',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [repoPath, status.upstream, onRefresh]);
+
   const shortcuts = useMemo(
     () => [
       {
@@ -285,8 +356,23 @@ export const ChangesView: FunctionComponent<{
         meta: true,
         handler: handleCommit,
       },
+      { key: 'k', meta: true, handler: openSearch },
+      { key: 'p', meta: true, handler: openSearch },
+      { key: 'm', meta: true, shift: true, handler: handlePullMerge },
+      { key: 'p', meta: true, shift: true, handler: handlePush },
+      { key: 'b', meta: true, handler: openBranch },
     ],
-    [files, focusedIndex, handleFileToggle, handleCommit, loadDiff],
+    [
+      files,
+      focusedIndex,
+      handleFileToggle,
+      handleCommit,
+      loadDiff,
+      openSearch,
+      handlePullMerge,
+      handlePush,
+      openBranch,
+    ],
   );
 
   useKeyboardShortcuts(shortcuts);
@@ -300,6 +386,119 @@ export const ChangesView: FunctionComponent<{
         overflow: 'hidden',
       }}
     >
+      {/* Status Bar */}
+      <Group
+        px="md"
+        py="xs"
+        justify="space-between"
+        style={(theme) => ({
+          borderBottom: `1px solid ${theme.colors.gray[3]}`,
+        })}
+      >
+        <Group gap="sm">
+          <Button
+            size="xs"
+            variant="subtle"
+            leftSection={<IconArrowLeft size={14} />}
+            onClick={() => router.push(`/repos/${params.repoId}/histories`)}
+          >
+            History
+          </Button>
+          <Group gap={4}>
+            <IconGitBranch size={16} />
+            <Text fw={600} size="sm">
+              {status.branch}
+            </Text>
+          </Group>
+          {status.ahead > 0 && (
+            <Tooltip label={`${status.ahead} unpushed`}>
+              <Badge
+                color="orange"
+                variant="light"
+                size="sm"
+                leftSection={<IconArrowUp size={10} />}
+              >
+                {status.ahead}
+              </Badge>
+            </Tooltip>
+          )}
+          {status.behind > 0 && (
+            <Tooltip label={`${status.behind} unpulled`}>
+              <Badge
+                color="blue"
+                variant="light"
+                size="sm"
+                leftSection={<IconArrowDown size={10} />}
+              >
+                {status.behind}
+              </Badge>
+            </Tooltip>
+          )}
+          {status.branch !== 'main' && status.aheadOfMain > 0 && (
+            <Badge color="gray" variant="light" size="sm">
+              main +{status.aheadOfMain}
+            </Badge>
+          )}
+          {status.branch !== 'main' && status.behindMain > 0 && (
+            <Badge color="gray" variant="light" size="sm">
+              main -{status.behindMain}
+            </Badge>
+          )}
+          {totalChanges > 0 && (
+            <Badge color="violet" variant="light" size="sm">
+              {totalChanges} changes
+            </Badge>
+          )}
+          {status.hasConflicts && (
+            <Badge color="red" variant="filled" size="sm">
+              CONFLICTS
+            </Badge>
+          )}
+        </Group>
+
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconSearch size={14} />}
+            onClick={openSearch}
+          >
+            Search
+          </Button>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconGitMerge size={14} />}
+            onClick={handlePullMerge}
+            loading={actionLoading}
+          >
+            Pull & Merge
+          </Button>
+          <Button
+            size="xs"
+            variant="light"
+            color={status.ahead > 0 ? 'orange' : undefined}
+            leftSection={<IconUpload size={14} />}
+            onClick={handlePush}
+            loading={actionLoading}
+          >
+            Push
+          </Button>
+        </Group>
+      </Group>
+
+      {notification && (
+        <Notification
+          color={notification.color}
+          onClose={() => setNotification(null)}
+          withCloseButton
+          mx="md"
+          mt="xs"
+        >
+          {notification.message}
+        </Notification>
+      )}
+
       <Box
         style={{
           display: 'flex',
@@ -516,6 +715,19 @@ export const ChangesView: FunctionComponent<{
           </Group>
         </Group>
       </Box>
+
+      <SearchDialog
+        opened={searchOpened}
+        onClose={closeSearch}
+        repoPath={repoPath}
+      />
+
+      <BranchSwitcher
+        opened={branchOpened}
+        onClose={closeBranch}
+        repoPath={repoPath}
+        onSwitch={onRefresh}
+      />
     </Box>
   );
 };
