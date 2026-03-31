@@ -16,6 +16,7 @@
     "@mantine/hooks": "8.3.15",
     "@mantine/modals": "8.3.17",
     "@mantine/notifications": "8.3.18",
+    "@openai/codex-sdk": "0.117.0",
     "@repo/database": "workspace:*",
     "@repo/env-picker": "workspace:*",
     "@repo/never-error": "workspace:*",

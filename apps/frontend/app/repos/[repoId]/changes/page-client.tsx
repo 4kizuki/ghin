@@ -8,7 +8,8 @@ import { ChangesView } from '@/components/changes-view';
 
 export const ChangesPageClient: FunctionComponent<{
   initialAutoPush: boolean;
-}> = ({ initialAutoPush }) => {
+  aiEnabled: boolean;
+}> = ({ initialAutoPush, aiEnabled }) => {
   const { repoPath, status, refreshStatus } = useRepoStatus();
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export const ChangesPageClient: FunctionComponent<{
       status={status}
       onRefresh={refreshStatus}
       initialAutoPush={initialAutoPush}
+      aiEnabled={aiEnabled}
     />
   );
 };

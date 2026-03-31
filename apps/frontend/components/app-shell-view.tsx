@@ -13,7 +13,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconMenu2, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
+import {
+  IconMenu2,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconX,
+} from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import type { Repository } from '@/lib/api';
@@ -213,18 +219,29 @@ export const AppShellView: FunctionComponent<{
               </Tabs.Tab>
             ))}
           </Tabs.List>
-          <Tooltip label="Search (⌘K)" openDelay={400}>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              mx={4}
-              style={{}}
-              onClick={openSearch}
-              disabled={!activeRepo}
-            >
-              <IconSearch size={18} />
-            </ActionIcon>
-          </Tooltip>
+          <Group gap={0} wrap="nowrap">
+            <Tooltip label="Search (⌘K)" openDelay={400}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                mx={4}
+                onClick={openSearch}
+                disabled={!activeRepo}
+              >
+                <IconSearch size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Settings" openDelay={400}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                mx={4}
+                onClick={() => router.push('/settings')}
+              >
+                <IconSettings size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Group>
 
         {activeRepo && (

@@ -46,8 +46,11 @@ import {
   setSetting,
   getRemoteUrl,
   setGitConfig,
+  suggestCommitMessage,
+  suggestBranchName,
   IdentityUnknownError,
 } from '@/lib/api';
+import { AiSuggestButton } from '@/components/ai-suggest-button';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
@@ -106,7 +109,8 @@ export const ChangesView: FunctionComponent<{
   status: RepoStatus;
   onRefresh: () => Promise<void>;
   initialAutoPush: boolean;
-}> = ({ repoPath, status, onRefresh, initialAutoPush }) => {
+  aiEnabled: boolean;
+}> = ({ repoPath, status, onRefresh, initialAutoPush, aiEnabled }) => {
   const router = useRouter();
   const params = useParams<{ repoId: string }>();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -143,6 +147,8 @@ export const ChangesView: FunctionComponent<{
   const [pendingCommitAction, setPendingCommitAction] = useState<
     (() => Promise<void>) | null
   >(null);
+  const [aiCommitLoading, setAiCommitLoading] = useState(false);
+  const [aiBranchLoading, setAiBranchLoading] = useState(false);
 
   const totalChanges =
     status.stagedFiles.length +
@@ -351,6 +357,53 @@ export const ChangesView: FunctionComponent<{
       style: { marginBottom: 80 },
     });
   }, []);
+
+  const handleSuggestCommitMessage = useCallback(async () => {
+    if (status.stagedFiles.length === 0) return;
+    setAiCommitLoading(true);
+    try {
+      const suggestion = await suggestCommitMessage(
+        repoPath,
+        status.branch,
+        status.stagedFiles.map((f) => ({
+          path: f.path,
+          status: f.status,
+          staged: f.staged,
+        })),
+      );
+      const message = suggestion.body
+        ? `${suggestion.subject}\n\n${suggestion.body}`
+        : suggestion.subject;
+      setCommitMsg(message);
+    } catch {
+      notifications.show({
+        title: 'AI Suggestion Failed',
+        message: 'Could not generate a commit message.',
+        color: 'red',
+      });
+    } finally {
+      setAiCommitLoading(false);
+    }
+  }, [repoPath, status.branch, status.stagedFiles]);
+
+  const handleSuggestBranchName = useCallback(async () => {
+    if (!commitMsg.trim()) return;
+    setAiBranchLoading(true);
+    try {
+      const suggestion = await suggestBranchName({
+        commitMessage: commitMsg.trim(),
+      });
+      setNewBranchName(suggestion.branchName);
+    } catch {
+      notifications.show({
+        title: 'AI Suggestion Failed',
+        message: 'Could not generate a branch name.',
+        color: 'red',
+      });
+    } finally {
+      setAiBranchLoading(false);
+    }
+  }, [commitMsg]);
 
   const handleCommit = useCallback(async () => {
     if (!commitMsg.trim()) return;
@@ -868,6 +921,17 @@ export const ChangesView: FunctionComponent<{
                 value={commitMsg}
                 onChange={(e) => setCommitMsg(e.currentTarget.value)}
                 ref={commitInputRef}
+                rightSection={
+                  aiEnabled ? (
+                    <AiSuggestButton
+                      onClick={handleSuggestCommitMessage}
+                      loading={aiCommitLoading}
+                      disabled={status.stagedFiles.length === 0}
+                      tooltip="AI: suggest commit message"
+                    />
+                  ) : undefined
+                }
+                rightSectionWidth={aiEnabled ? 32 : undefined}
                 style={{ flex: 1 }}
               />
             </Group>
@@ -921,6 +985,17 @@ export const ChangesView: FunctionComponent<{
             value={newBranchName}
             onChange={(e) => setNewBranchName(e.currentTarget.value)}
             data-autofocus
+            rightSection={
+              aiEnabled ? (
+                <AiSuggestButton
+                  onClick={handleSuggestBranchName}
+                  loading={aiBranchLoading}
+                  disabled={!commitMsg.trim()}
+                  tooltip="AI: suggest branch name"
+                />
+              ) : undefined
+            }
+            rightSectionWidth={aiEnabled ? 32 : undefined}
           />
           {autoPush && (
             <>

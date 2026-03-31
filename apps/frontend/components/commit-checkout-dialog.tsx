@@ -14,7 +14,14 @@ import {
   Badge,
 } from '@mantine/core';
 import { IconGitBranch } from '@tabler/icons-react';
-import { getBranchesContaining, checkoutRef, createBranch } from '@/lib/api';
+import {
+  getBranchesContaining,
+  checkoutRef,
+  createBranch,
+  suggestBranchName,
+} from '@/lib/api';
+import { notifications } from '@mantine/notifications';
+import { AiSuggestButton } from '@/components/ai-suggest-button';
 
 type DialogStatus = 'idle' | 'loading' | 'select' | 'create';
 
@@ -37,6 +44,7 @@ const deduplicateBranches = (branches: string[]): string[] => {
 
 export const CommitCheckoutDialog: FunctionComponent<{
   commitHash: string | null;
+  commitMessage: string | null;
   hasBranchRef: boolean;
   repoPath: string;
   currentBranch: string | undefined;
@@ -44,6 +52,7 @@ export const CommitCheckoutDialog: FunctionComponent<{
   onCheckout: () => Promise<void>;
 }> = ({
   commitHash,
+  commitMessage,
   hasBranchRef,
   repoPath,
   currentBranch,
@@ -56,6 +65,7 @@ export const CommitCheckoutDialog: FunctionComponent<{
   const [createFromRemote, setCreateFromRemote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [aiBranchLoading, setAiBranchLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const hashRef = useRef<string | null>(null);
 
@@ -123,6 +133,26 @@ export const CommitCheckoutDialog: FunctionComponent<{
         setStatus('create');
       });
   }, [commitHash, hasBranchRef, repoPath, currentBranch, onClose, onCheckout]);
+
+  const handleSuggestBranchName = useCallback(async () => {
+    if (!commitHash) return;
+    setAiBranchLoading(true);
+    try {
+      const suggestion = await suggestBranchName({
+        commitMessage: commitMessage ?? '',
+        commitHash,
+      });
+      setNewBranchName(suggestion.branchName);
+    } catch {
+      notifications.show({
+        title: 'AI Suggestion Failed',
+        message: 'Could not generate a branch name.',
+        color: 'red',
+      });
+    } finally {
+      setAiBranchLoading(false);
+    }
+  }, [commitHash, commitMessage]);
 
   const handleCheckoutBranch = useCallback(
     async (branch: string) => {
@@ -277,6 +307,14 @@ export const CommitCheckoutDialog: FunctionComponent<{
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateBranch();
               }}
+              rightSection={
+                <AiSuggestButton
+                  onClick={handleSuggestBranchName}
+                  loading={aiBranchLoading}
+                  tooltip="AI: suggest branch name"
+                />
+              }
+              rightSectionWidth={32}
             />
             <Button
               onClick={handleCreateBranch}

@@ -124,6 +124,7 @@ export const HistoryView: FunctionComponent<{
   const [checkoutTarget, setCheckoutTarget] = useState<{
     hash: string;
     hasBranchRef: boolean;
+    message: string;
   } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -334,7 +335,11 @@ export const HistoryView: FunctionComponent<{
 
   const handleCommitDoubleClick = useCallback((commit: CommitInfo) => {
     const hasBranchRef = commit.refs.some((ref) => !ref.startsWith('tag: '));
-    setCheckoutTarget({ hash: commit.hash, hasBranchRef });
+    setCheckoutTarget({
+      hash: commit.hash,
+      hasBranchRef,
+      message: commit.message,
+    });
   }, []);
 
   const handlePostCheckout = useCallback(async () => {
@@ -1067,6 +1072,7 @@ export const HistoryView: FunctionComponent<{
 
       <CommitCheckoutDialog
         commitHash={checkoutTarget?.hash ?? null}
+        commitMessage={checkoutTarget?.message ?? null}
         hasBranchRef={checkoutTarget?.hasBranchRef ?? false}
         repoPath={repoPath}
         currentBranch={status?.branch}
