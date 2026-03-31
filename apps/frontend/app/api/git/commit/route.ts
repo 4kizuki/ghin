@@ -17,6 +17,15 @@ export const POST = async (request: Request): Promise<NextResponse> => {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
 
+  const userName = await git.getConfig(parsed.data.repo, 'user.name');
+  const userEmail = await git.getConfig(parsed.data.repo, 'user.email');
+  if (!userName || !userEmail) {
+    return NextResponse.json(
+      { error: 'identity_unknown', userName, userEmail },
+      { status: 422 },
+    );
+  }
+
   if (parsed.data.newBranch) {
     await git.createBranch(parsed.data.repo, parsed.data.newBranch);
   }

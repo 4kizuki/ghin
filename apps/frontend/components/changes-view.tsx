@@ -45,6 +45,8 @@ import {
   commitChanges,
   setSetting,
   getRemoteUrl,
+  setGitConfig,
+  IdentityUnknownError,
 } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
@@ -133,6 +135,14 @@ export const ChangesView: FunctionComponent<{
   ] = useDisclosure(false);
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
   const [pushBranchName, setPushBranchName] = useState('');
+  const [identityOpened, { open: openIdentity, close: closeIdentity }] =
+    useDisclosure(false);
+  const [identityName, setIdentityName] = useState('');
+  const [identityEmail, setIdentityEmail] = useState('');
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [pendingCommitAction, setPendingCommitAction] = useState<
+    (() => Promise<void>) | null
+  >(null);
 
   const totalChanges =
     status.stagedFiles.length +
@@ -256,6 +266,20 @@ export const ChangesView: FunctionComponent<{
     }
   }, [repoPath]);
 
+  const handleIdentityError = useCallback(
+    (error: unknown, retryAction: () => Promise<void>) => {
+      if (error instanceof IdentityUnknownError) {
+        setIdentityName(error.userName ?? '');
+        setIdentityEmail(error.userEmail ?? '');
+        setPendingCommitAction(() => retryAction);
+        openIdentity();
+        return true;
+      }
+      return false;
+    },
+    [openIdentity],
+  );
+
   const handleCommitDirect = useCallback(async () => {
     if (!commitMsg.trim()) return;
     setCommitting(true);
@@ -263,12 +287,16 @@ export const ChangesView: FunctionComponent<{
       await commitChanges(repoPath, commitMsg.trim(), undefined, false);
       setCommitMsg('');
       await onRefresh();
-    } catch {
-      // error handled via notification in parent
+    } catch (error) {
+      handleIdentityError(error, async () => {
+        await commitChanges(repoPath, commitMsg.trim(), undefined, false);
+        setCommitMsg('');
+        await onRefresh();
+      });
     } finally {
       setCommitting(false);
     }
-  }, [repoPath, commitMsg, onRefresh]);
+  }, [repoPath, commitMsg, onRefresh, handleIdentityError]);
 
   const handleCommitAndPush = useCallback(async () => {
     if (!commitMsg.trim()) return;
@@ -286,8 +314,21 @@ export const ChangesView: FunctionComponent<{
       setCommitMsg('');
       closePushConfirm();
       await onRefresh();
-    } catch {
-      // error handled via notification in parent
+    } catch (error) {
+      handleIdentityError(error, async () => {
+        const branch =
+          !status.upstream && pushBranchName ? pushBranchName : undefined;
+        await commitChanges(
+          repoPath,
+          commitMsg.trim(),
+          undefined,
+          true,
+          branch,
+        );
+        setCommitMsg('');
+        closePushConfirm();
+        await onRefresh();
+      });
     } finally {
       setCommitting(false);
     }
@@ -298,6 +339,7 @@ export const ChangesView: FunctionComponent<{
     pushBranchName,
     onRefresh,
     closePushConfirm,
+    handleIdentityError,
   ]);
 
   const showNoOriginError = useCallback(() => {
@@ -362,8 +404,22 @@ export const ChangesView: FunctionComponent<{
       setPushBranchName('');
       closeNewBranch();
       await onRefresh();
-    } catch {
-      // error handled via notification in parent
+    } catch (error) {
+      handleIdentityError(error, async () => {
+        const branch = autoPush && pushBranchName ? pushBranchName : undefined;
+        await commitChanges(
+          repoPath,
+          commitMsg.trim(),
+          newBranchName.trim(),
+          autoPush,
+          branch,
+        );
+        setCommitMsg('');
+        setNewBranchName('');
+        setPushBranchName('');
+        closeNewBranch();
+        await onRefresh();
+      });
     } finally {
       setCommitting(false);
     }
@@ -375,6 +431,36 @@ export const ChangesView: FunctionComponent<{
     pushBranchName,
     onRefresh,
     closeNewBranch,
+    handleIdentityError,
+  ]);
+
+  const handleSaveIdentity = useCallback(async () => {
+    if (!identityName.trim() || !identityEmail.trim()) return;
+    setIdentitySaving(true);
+    try {
+      await setGitConfig(repoPath, 'user.name', identityName.trim());
+      await setGitConfig(repoPath, 'user.email', identityEmail.trim());
+      closeIdentity();
+      if (pendingCommitAction) {
+        await pendingCommitAction();
+        setPendingCommitAction(null);
+      }
+    } catch {
+      notifications.show({
+        title: 'Git config の設定に失敗しました',
+        message: 'user.name / user.email を設定できませんでした。',
+        color: 'red',
+        style: { marginBottom: 80 },
+      });
+    } finally {
+      setIdentitySaving(false);
+    }
+  }, [
+    repoPath,
+    identityName,
+    identityEmail,
+    closeIdentity,
+    pendingCommitAction,
   ]);
 
   const handleAutoPushToggle = useCallback((checked: boolean) => {
@@ -942,6 +1028,53 @@ export const ChangesView: FunctionComponent<{
             </Button>
             <Button onClick={handleCommitAndPush} loading={committing}>
               Commit & Push
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={identityOpened}
+        onClose={() => {
+          closeIdentity();
+          setPendingCommitAction(null);
+        }}
+        title="Git Author Identity"
+      >
+        <Stack>
+          <Text size="sm">
+            このリポジトリに user.name / user.email
+            が設定されていません。ローカル設定を行います。
+          </Text>
+          <TextInput
+            label="user.name"
+            placeholder="Your Name"
+            value={identityName}
+            onChange={(e) => setIdentityName(e.currentTarget.value)}
+            data-autofocus
+          />
+          <TextInput
+            label="user.email"
+            placeholder="you@example.com"
+            value={identityEmail}
+            onChange={(e) => setIdentityEmail(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                closeIdentity();
+                setPendingCommitAction(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveIdentity}
+              loading={identitySaving}
+              disabled={!identityName.trim() || !identityEmail.trim()}
+            >
+              Save & Commit
             </Button>
           </Group>
         </Stack>

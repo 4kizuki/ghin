@@ -10,10 +10,29 @@ type Repository = {
 
 export type { Repository };
 
+export class IdentityUnknownError extends Error {
+  readonly userName: string | null;
+  readonly userEmail: string | null;
+  constructor(userName: string | null, userEmail: string | null) {
+    super('identity_unknown');
+    this.userName = userName;
+    this.userEmail = userEmail;
+  }
+}
+
 const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (res.status === 422 && body.includes('identity_unknown')) {
+      // eslint-disable-next-line @repo/typescript-convention/no-type-assertion -- JSON.parse returns unknown, we validate the shape via instanceof check above
+      const parsed = JSON.parse(body) as {
+        error: string;
+        userName: string | null;
+        userEmail: string | null;
+      };
+      throw new IdentityUnknownError(parsed.userName, parsed.userEmail);
+    }
     throw new Error(`API error ${res.status}: ${body}`);
   }
   // eslint-disable-next-line @repo/typescript-convention/no-type-assertion -- Response.json() returns Promise<unknown>, generic cast needed for API client
@@ -315,4 +334,17 @@ export const setSetting = (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
+  });
+
+// ─── Git Config ─────────────────────────────────────────────────────
+
+export const setGitConfig = (
+  repo: string,
+  key: string,
+  value: string,
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, key, value }),
   });

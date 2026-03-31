@@ -775,6 +775,23 @@ const fetchRemotes = async (cwd: string, remotes: string[]): Promise<void> => {
   }
 };
 
+const getConfig = async (cwd: string, key: string): Promise<string | null> => {
+  try {
+    const output = await exec(['config', key], cwd);
+    return output.trim() || null;
+  } catch {
+    return null;
+  }
+};
+
+const setLocalConfig = async (
+  cwd: string,
+  key: string,
+  value: string,
+): Promise<void> => {
+  await exec(['config', '--local', key, value], cwd);
+};
+
 export const git = {
   getStatus,
   getDiff,
@@ -806,4 +823,6 @@ export const git = {
   getRemoteUrl,
   getRemotes,
   fetchRemotes,
+  getConfig,
+  setLocalConfig,
 };
