@@ -44,7 +44,6 @@ import {
   stagePatch,
   unstagePatch,
   commitChanges,
-  getSettings,
   setSetting,
   pullAndMergeMain,
   pushChanges,
@@ -107,7 +106,8 @@ export const ChangesView: FunctionComponent<{
   repoPath: string;
   status: RepoStatus;
   onRefresh: () => Promise<void>;
-}> = ({ repoPath, status, onRefresh }) => {
+  initialAutoPush: boolean;
+}> = ({ repoPath, status, onRefresh, initialAutoPush }) => {
   const router = useRouter();
   const params = useParams<{ repoId: string }>();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export const ChangesView: FunctionComponent<{
   const [newBranchName, setNewBranchName] = useState('');
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [committing, setCommitting] = useState(false);
-  const [autoPush, setAutoPush] = useState(false);
+  const [autoPush, setAutoPush] = useState(initialAutoPush);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const commitInputRef = useRef<HTMLInputElement>(null);
@@ -132,13 +132,6 @@ export const ChangesView: FunctionComponent<{
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
-
-  // Load auto-push setting
-  useState(() => {
-    getSettings().then((s) => {
-      if (s['autoPush'] === 'true') setAutoPush(true);
-    });
-  });
 
   const totalChanges =
     status.stagedFiles.length +

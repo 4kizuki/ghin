@@ -50,3 +50,7 @@ pnpm checks            # 全チェック一括実行
 
 # 実装後
 - pnpm typecheck より pnpm checks を優先して行え
+
+# Prefer Server Copmonent
+- PREFER SERVER COMPONENT
+- DATA FETCH in SERVER COMPONENT

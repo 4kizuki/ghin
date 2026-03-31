@@ -1,33 +1,12 @@
-'use client';
-
 import type { FunctionComponent } from 'react';
-import { useEffect } from 'react';
-import { Group, Loader } from '@mantine/core';
-import { useRepoStatus } from '@/contexts/repo-status-context';
-import { ChangesView } from '@/components/changes-view';
+import { prisma } from '@/lib/prisma';
+import { ChangesPageClient } from './page-client';
 
-const Page: FunctionComponent = () => {
-  const { repoPath, status, refreshStatus } = useRepoStatus();
+const Page: FunctionComponent = async () => {
+  const row = await prisma.setting.findUnique({ where: { key: 'autoPush' } });
+  const initialAutoPush = row?.value === 'true';
 
-  useEffect(() => {
-    refreshStatus();
-  }, [refreshStatus]);
-
-  if (!status) {
-    return (
-      <Group justify="center" pt="xl">
-        <Loader size="sm" />
-      </Group>
-    );
-  }
-
-  return (
-    <ChangesView
-      repoPath={repoPath}
-      status={status}
-      onRefresh={refreshStatus}
-    />
-  );
+  return <ChangesPageClient initialAutoPush={initialAutoPush} />;
 };
 
 export default Page;
