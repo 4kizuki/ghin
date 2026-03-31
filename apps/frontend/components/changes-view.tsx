@@ -557,17 +557,32 @@ export const ChangesView: FunctionComponent<{
                     indeterminate={file.partial}
                     onChange={() => handleFileToggle(file)}
                     onClick={(e) => e.stopPropagation()}
+                    style={{ flex: '0 0 auto' }}
                   />
                   <Tooltip label={file.path} openDelay={500}>
-                    <Group gap={4} wrap="nowrap" style={{ overflow: 'hidden' }}>
+                    <Group
+                      gap={4}
+                      wrap="nowrap"
+                      style={{
+                        overflow: 'hidden',
+                        flex: '1 1 auto',
+                        minWidth: 0,
+                      }}
+                    >
                       <FileIcon
                         size={14}
+                        style={{ flex: '0 0 auto' }}
                         color={`var(--mantine-color-${getStatusColor(file.status)}-6)`}
                       />
                       <Text size="xs" truncate="end" style={{ minWidth: 0 }}>
                         {file.path.split('/').pop()}
                       </Text>
-                      <Text size="xs" c="dimmed" truncate="end">
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                        truncate="end"
+                        style={{ minWidth: 0 }}
+                      >
                         {file.path.includes('/')
                           ? file.path.slice(0, file.path.lastIndexOf('/'))
                           : ''}
@@ -579,7 +594,7 @@ export const ChangesView: FunctionComponent<{
                     variant="light"
                     color={getStatusColor(file.status)}
                     ml="auto"
-                    style={{ flexShrink: 0 }}
+                    style={{ flex: '0 0 auto' }}
                   >
                     {file.status}
                   </Badge>
