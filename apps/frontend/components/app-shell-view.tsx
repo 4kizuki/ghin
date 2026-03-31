@@ -1,7 +1,7 @@
 'use client';
 
 import type { FunctionComponent, ReactNode } from 'react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Tabs,
   Group,
@@ -14,13 +14,15 @@ import {
   Box,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconX } from '@tabler/icons-react';
+import { IconMenu2, IconX } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import type { Repository } from '@/lib/api';
 import { addRepository, removeRepository } from '@/lib/api';
 import { ShortcutsHelp } from '@/components/shortcuts-help';
+import { RepoDrawer } from '@/components/repo-drawer';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
+import { useOpenTabStore, useOpenTabActions } from '@/hooks/use-open-tabs';
 
 export const AppShellView: FunctionComponent<{
   repos: Repository[];
@@ -32,10 +34,43 @@ export const AppShellView: FunctionComponent<{
   const repoId = params.repoId ?? null;
 
   const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
+  const [drawerOpened, { open: openDrawer, close: closeDrawer }] =
+    useDisclosure(false);
   const [helpOpened, { open: openHelp, close: closeHelp }] =
     useDisclosure(false);
   const [newName, setNewName] = useState('');
   const [newPath, setNewPath] = useState('');
+
+  const allRepoIds = useMemo(() => repos.map((r) => r.id), [repos]);
+  const rawOpenTabIds = useOpenTabStore();
+  const { openTab, closeTab, setOpenTabs } = useOpenTabActions();
+
+  // null = localStorage 未初期化（初回起動 or SSR）→ 全リポジトリ表示
+  const openTabIds = useMemo(() => {
+    if (rawOpenTabIds === null) return allRepoIds;
+    return rawOpenTabIds.filter((id) => allRepoIds.includes(id));
+  }, [rawOpenTabIds, allRepoIds]);
+
+  // 初回起動時に全リポジトリを localStorage に保存
+  useEffect(() => {
+    if (rawOpenTabIds === null && typeof window !== 'undefined') {
+      if (localStorage.getItem('open-tab-ids') === null) {
+        setOpenTabs(allRepoIds);
+      }
+    }
+  }, [rawOpenTabIds, allRepoIds, setOpenTabs]);
+
+  // URL の repoId がタブに無い場合は自動的に開く（repoId 変更時のみ）
+  useEffect(() => {
+    if (repoId && repos.some((r) => r.id === repoId)) {
+      openTab(repoId);
+    }
+  }, [repoId, repos, openTab]);
+
+  const visibleRepos = useMemo(
+    () => repos.filter((r) => openTabIds.includes(r.id)),
+    [repos, openTabIds],
+  );
 
   const navigateToRepo = useCallback(
     (id: string) => {
@@ -51,53 +86,81 @@ export const AppShellView: FunctionComponent<{
     setNewName('');
     setNewPath('');
     closeAdd();
+    openTab(repo.id);
     router.refresh();
     router.push(`/repos/${repo.id}/changes`);
-  }, [newName, newPath, closeAdd, router]);
+  }, [newName, newPath, closeAdd, router, openTab]);
 
-  const handleRemove = useCallback(
+  const handleCloseTab = useCallback(
     (id: string) => {
+      closeTab(id);
+      if (repoId === id) {
+        const remaining = openTabIds.filter((tid) => tid !== id);
+        if (remaining.length > 0) {
+          navigateToRepo(remaining[0]);
+        } else {
+          router.push('/repos');
+        }
+      }
+    },
+    [closeTab, repoId, openTabIds, navigateToRepo, router],
+  );
+
+  const handleDeleteRepo = useCallback(
+    (id: string) => {
+      const repo = repos.find((r) => r.id === id);
       modals.openConfirmModal({
         title: 'Remove repository',
         children: (
           <Text size="sm">
-            Are you sure you want to remove this repository from Ghin?
+            Are you sure you want to remove &quot;{repo?.name}&quot; from Ghin?
           </Text>
         ),
         labels: { confirm: 'Remove', cancel: 'Cancel' },
         confirmProps: { color: 'red' },
         onConfirm: async () => {
           await removeRepository(id);
+          closeTab(id);
           router.refresh();
           if (repoId === id) {
-            const remaining = repos.filter((r) => r.id !== id);
+            const remaining = openTabIds.filter((tid) => tid !== id);
             if (remaining.length > 0) {
-              router.push(`/repos/${remaining[0].id}/changes`);
+              navigateToRepo(remaining[0]);
             } else {
-              router.replace('/repos');
+              router.push('/repos');
             }
           }
         },
       });
     },
-    [repoId, repos, router],
+    [repos, repoId, openTabIds, closeTab, navigateToRepo, router],
+  );
+
+  const handleOpenRepo = useCallback(
+    (id: string) => {
+      if (!openTabIds.includes(id)) {
+        openTab(id);
+      }
+      navigateToRepo(id);
+    },
+    [openTabIds, openTab, navigateToRepo],
   );
 
   const activeRepo = useMemo(
-    () => repos.find((r) => r.id === repoId),
-    [repos, repoId],
+    () => visibleRepos.find((r) => r.id === repoId),
+    [visibleRepos, repoId],
   );
 
   const shortcuts = useMemo(
     () => [
       { key: '?', handler: openHelp },
-      ...repos.slice(0, 9).map((repo, i) => ({
+      ...visibleRepos.slice(0, 9).map((repo, i) => ({
         key: String(i + 1),
         meta: true,
         handler: () => navigateToRepo(repo.id),
       })),
     ],
-    [repos, openHelp, navigateToRepo],
+    [visibleRepos, openHelp, navigateToRepo],
   );
 
   useKeyboardShortcuts(shortcuts);
@@ -124,7 +187,16 @@ export const AppShellView: FunctionComponent<{
         }}
       >
         <Tabs.List>
-          {repos.map((repo) => (
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            mx={4}
+            onClick={openDrawer}
+            style={{ alignSelf: 'center' }}
+          >
+            <IconMenu2 size={18} />
+          </ActionIcon>
+          {visibleRepos.map((repo) => (
             <Tabs.Tab
               key={repo.id}
               value={repo.id}
@@ -134,7 +206,7 @@ export const AppShellView: FunctionComponent<{
                   style={{ cursor: 'pointer', display: 'inline-flex' }}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    handleRemove(repo.id);
+                    handleCloseTab(repo.id);
                   }}
                 >
                   <IconX size={12} />
@@ -144,9 +216,6 @@ export const AppShellView: FunctionComponent<{
               {repo.name}
             </Tabs.Tab>
           ))}
-          <ActionIcon variant="subtle" color="gray" ml="xs" onClick={openAdd}>
-            <IconPlus size={16} />
-          </ActionIcon>
         </Tabs.List>
 
         {activeRepo && (
@@ -155,17 +224,38 @@ export const AppShellView: FunctionComponent<{
           </Box>
         )}
 
+        {visibleRepos.length === 0 && repos.length > 0 && (
+          <Stack align="center" justify="center" style={{ flex: 1 }}>
+            <Text c="dimmed" size="lg">
+              No repositories open
+            </Text>
+            <Button onClick={openDrawer} leftSection={<IconMenu2 size={16} />}>
+              Open Repository List
+            </Button>
+          </Stack>
+        )}
+
         {repos.length === 0 && (
           <Stack align="center" justify="center" style={{ flex: 1 }}>
             <Text c="dimmed" size="lg">
               No repositories added
             </Text>
-            <Button onClick={openAdd} leftSection={<IconPlus size={16} />}>
+            <Button onClick={openDrawer} leftSection={<IconMenu2 size={16} />}>
               Add Repository
             </Button>
           </Stack>
         )}
       </Tabs>
+
+      <RepoDrawer
+        opened={drawerOpened}
+        onClose={closeDrawer}
+        repos={repos}
+        openTabIds={openTabIds}
+        onOpenRepo={handleOpenRepo}
+        onDeleteRepo={handleDeleteRepo}
+        onAddRepo={openAdd}
+      />
 
       <Modal opened={addOpened} onClose={closeAdd} title="Add Repository">
         <Stack>

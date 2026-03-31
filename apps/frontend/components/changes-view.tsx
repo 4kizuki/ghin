@@ -1,7 +1,7 @@
 'use client';
 
 import type { FunctionComponent } from 'react';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   Box,
   Group,
@@ -32,6 +32,8 @@ import {
   IconGitMerge,
   IconUpload,
   IconSearch,
+  IconPlus,
+  IconMinus,
 } from '@tabler/icons-react';
 import { useRouter, useParams } from 'next/navigation';
 import type { RepoStatus, FileChange, FileDiff } from '@/lib/git';
@@ -58,7 +60,6 @@ type FileEntry = {
   path: string;
   status: FileChange['status'];
   staged: boolean;
-  partial: boolean;
 };
 
 const getFileIcon = (status: FileChange['status']): typeof IconFile => {
@@ -144,43 +145,35 @@ export const ChangesView: FunctionComponent<{
     status.unstagedFiles.length +
     status.untrackedFiles.length;
 
-  const files = useMemo((): FileEntry[] => {
+  const stagedEntries = useMemo(
+    (): FileEntry[] =>
+      status.stagedFiles
+        .map((f) => ({ path: f.path, status: f.status, staged: true }))
+        .sort((a, b) => a.path.localeCompare(b.path)),
+    [status.stagedFiles],
+  );
+
+  const unstagedEntries = useMemo((): FileEntry[] => {
     const entries: FileEntry[] = [];
-    const pathSet = new Set<string>();
-
-    for (const f of status.stagedFiles) {
-      const unstaged = status.unstagedFiles.find((u) => u.path === f.path);
-      entries.push({
-        path: f.path,
-        status: f.status,
-        staged: !unstaged,
-        partial: !!unstaged,
-      });
-      pathSet.add(f.path);
-    }
-
     for (const f of status.unstagedFiles) {
-      if (!pathSet.has(f.path)) {
-        entries.push({
-          path: f.path,
-          status: f.status,
-          staged: false,
-          partial: false,
-        });
-      }
+      entries.push({ path: f.path, status: f.status, staged: false });
     }
-
     for (const f of status.untrackedFiles) {
-      entries.push({
-        path: f.path,
-        status: '?',
-        staged: false,
-        partial: false,
-      });
+      entries.push({ path: f.path, status: '?', staged: false });
     }
-
     return entries.sort((a, b) => a.path.localeCompare(b.path));
-  }, [status]);
+  }, [status.unstagedFiles, status.untrackedFiles]);
+
+  const allEntries = useMemo(
+    (): FileEntry[] => [...stagedEntries, ...unstagedEntries],
+    [stagedEntries, unstagedEntries],
+  );
+
+  useEffect(() => {
+    setFocusedIndex((prev) =>
+      Math.min(prev, Math.max(0, allEntries.length - 1)),
+    );
+  }, [allEntries.length]);
 
   const loadDiff = useCallback(
     async (filePath: string, staged: boolean) => {
@@ -198,29 +191,28 @@ export const ChangesView: FunctionComponent<{
   );
 
   const handleFileClick = useCallback(
-    (file: FileEntry, index: number) => {
+    (file: FileEntry, globalIndex: number) => {
       setSelectedFile(file.path);
-      setFocusedIndex(index);
-      const showStaged = file.staged && !file.partial;
-      setSelectedFileStaged(showStaged);
-      loadDiff(file.path, showStaged);
+      setFocusedIndex(globalIndex);
+      setSelectedFileStaged(file.staged);
+      loadDiff(file.path, file.staged);
     },
     [loadDiff],
   );
 
   const handleFileToggle = useCallback(
     async (file: FileEntry) => {
-      if (file.staged || file.partial) {
+      if (file.staged) {
         await unstagePaths(repoPath, [file.path]);
       } else {
         await stagePaths(repoPath, [file.path]);
       }
       await onRefresh();
       if (selectedFile === file.path) {
-        loadDiff(file.path, !file.staged && !file.partial);
+        loadDiff(file.path, selectedFileStaged);
       }
     },
-    [repoPath, onRefresh, selectedFile, loadDiff],
+    [repoPath, onRefresh, selectedFile, selectedFileStaged, loadDiff],
   );
 
   const handleHunkStage = useCallback(
@@ -244,6 +236,20 @@ export const ChangesView: FunctionComponent<{
     },
     [repoPath, onRefresh, selectedFile, loadDiff],
   );
+
+  const handleStageAll = useCallback(async () => {
+    const paths = unstagedEntries.map((f) => f.path);
+    if (paths.length === 0) return;
+    await stagePaths(repoPath, paths);
+    await onRefresh();
+  }, [repoPath, unstagedEntries, onRefresh]);
+
+  const handleUnstageAll = useCallback(async () => {
+    const paths = stagedEntries.map((f) => f.path);
+    if (paths.length === 0) return;
+    await unstagePaths(repoPath, paths);
+    await onRefresh();
+  }, [repoPath, stagedEntries, onRefresh]);
 
   const handleCommit = useCallback(async () => {
     if (!commitMsg.trim()) return;
@@ -318,13 +324,12 @@ export const ChangesView: FunctionComponent<{
         key: 'j',
         handler: () =>
           setFocusedIndex((prev) => {
-            const next = Math.min(prev + 1, files.length - 1);
-            const file = files[next];
+            const next = Math.min(prev + 1, allEntries.length - 1);
+            const file = allEntries[next];
             if (file) {
               setSelectedFile(file.path);
-              const showStaged = file.staged && !file.partial;
-              setSelectedFileStaged(showStaged);
-              loadDiff(file.path, showStaged);
+              setSelectedFileStaged(file.staged);
+              loadDiff(file.path, file.staged);
             }
             return next;
           }),
@@ -334,12 +339,11 @@ export const ChangesView: FunctionComponent<{
         handler: () =>
           setFocusedIndex((prev) => {
             const next = Math.max(prev - 1, 0);
-            const file = files[next];
+            const file = allEntries[next];
             if (file) {
               setSelectedFile(file.path);
-              const showStaged = file.staged && !file.partial;
-              setSelectedFileStaged(showStaged);
-              loadDiff(file.path, showStaged);
+              setSelectedFileStaged(file.staged);
+              loadDiff(file.path, file.staged);
             }
             return next;
           }),
@@ -347,7 +351,7 @@ export const ChangesView: FunctionComponent<{
       {
         key: ' ',
         handler: () => {
-          const file = files[focusedIndex];
+          const file = allEntries[focusedIndex];
           if (file) handleFileToggle(file);
         },
       },
@@ -363,7 +367,7 @@ export const ChangesView: FunctionComponent<{
       { key: 'b', meta: true, handler: openBranch },
     ],
     [
-      files,
+      allEntries,
       focusedIndex,
       handleFileToggle,
       handleCommit,
@@ -376,6 +380,79 @@ export const ChangesView: FunctionComponent<{
   );
 
   useKeyboardShortcuts(shortcuts);
+
+  const renderFileRow = (file: FileEntry, globalIndex: number) => {
+    const FileIcon = getFileIcon(file.status);
+    const isFocused = globalIndex === focusedIndex;
+    const isSelected =
+      selectedFile === file.path && selectedFileStaged === file.staged;
+    return (
+      <Group
+        key={`${file.path}-${String(file.staged)}`}
+        gap="xs"
+        px="sm"
+        py={4}
+        style={(theme) => ({
+          cursor: 'pointer',
+          backgroundColor: isSelected
+            ? theme.colors.blue[0]
+            : isFocused
+              ? theme.colors.gray[0]
+              : undefined,
+          borderLeft: isFocused
+            ? `2px solid ${theme.colors.blue[5]}`
+            : '2px solid transparent',
+          '&:hover': {
+            backgroundColor: theme.colors.gray[0],
+          },
+        })}
+        onClick={() => handleFileClick(file, globalIndex)}
+        wrap="nowrap"
+      >
+        <Checkbox
+          size="xs"
+          checked={file.staged}
+          onChange={() => handleFileToggle(file)}
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: '0 0 auto' }}
+        />
+        <Tooltip label={file.path} openDelay={500}>
+          <Group
+            gap={4}
+            wrap="nowrap"
+            style={{
+              overflow: 'hidden',
+              flex: '1 1 auto',
+              minWidth: 0,
+            }}
+          >
+            <FileIcon
+              size={14}
+              style={{ flex: '0 0 auto' }}
+              color={`var(--mantine-color-${getStatusColor(file.status)}-6)`}
+            />
+            <Text size="xs" truncate="end" style={{ minWidth: 0 }}>
+              {file.path.split('/').pop()}
+            </Text>
+            <Text size="xs" c="dimmed" truncate="end" style={{ minWidth: 0 }}>
+              {file.path.includes('/')
+                ? file.path.slice(0, file.path.lastIndexOf('/'))
+                : ''}
+            </Text>
+          </Group>
+        </Tooltip>
+        <Badge
+          size="xs"
+          variant="light"
+          color={getStatusColor(file.status)}
+          ml="auto"
+          style={{ flex: '0 0 auto' }}
+        >
+          {file.status}
+        </Badge>
+      </Group>
+    );
+  };
 
   return (
     <Box
@@ -509,7 +586,7 @@ export const ChangesView: FunctionComponent<{
           overflow: 'hidden',
         }}
       >
-        {/* Left pane: file list */}
+        {/* Left pane: file list (staged / unstaged) */}
         <Box
           style={{
             width: 300,
@@ -520,90 +597,99 @@ export const ChangesView: FunctionComponent<{
             minHeight: 0,
           }}
         >
-          <Group px="sm" py={6} justify="space-between">
-            <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-              Changed Files ({files.length})
-            </Text>
-          </Group>
-          <ScrollArea style={{ flex: 1 }}>
-            {files.map((file, index) => {
-              const FileIcon = getFileIcon(file.status);
-              const isFocused = index === focusedIndex;
-              const isSelected = selectedFile === file.path;
-              return (
-                <Group
-                  key={`${file.path}-${String(file.staged)}`}
-                  gap="xs"
-                  px="sm"
-                  py={4}
-                  style={(theme) => ({
-                    cursor: 'pointer',
-                    backgroundColor: isSelected
-                      ? theme.colors.blue[0]
-                      : isFocused
-                        ? theme.colors.gray[0]
-                        : undefined,
-                    borderLeft: isFocused
-                      ? `2px solid ${theme.colors.blue[5]}`
-                      : '2px solid transparent',
-                    '&:hover': {
-                      backgroundColor: theme.colors.gray[0],
-                    },
-                  })}
-                  onClick={() => handleFileClick(file, index)}
-                  wrap="nowrap"
-                >
-                  <Checkbox
+          {/* Staged section */}
+          <Box
+            style={{
+              flex: '1 1 0',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <Group
+              px="sm"
+              py={6}
+              justify="space-between"
+              style={{ flex: '0 0 auto' }}
+            >
+              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                Staged Changes ({stagedEntries.length})
+              </Text>
+              {stagedEntries.length > 0 && (
+                <Tooltip label="Unstage All">
+                  <ActionIcon
                     size="xs"
-                    checked={file.staged}
-                    indeterminate={file.partial}
-                    onChange={() => handleFileToggle(file)}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ flex: '0 0 auto' }}
-                  />
-                  <Tooltip label={file.path} openDelay={500}>
-                    <Group
-                      gap={4}
-                      wrap="nowrap"
-                      style={{
-                        overflow: 'hidden',
-                        flex: '1 1 auto',
-                        minWidth: 0,
-                      }}
-                    >
-                      <FileIcon
-                        size={14}
-                        style={{ flex: '0 0 auto' }}
-                        color={`var(--mantine-color-${getStatusColor(file.status)}-6)`}
-                      />
-                      <Text size="xs" truncate="end" style={{ minWidth: 0 }}>
-                        {file.path.split('/').pop()}
-                      </Text>
-                      <Text
-                        size="xs"
-                        c="dimmed"
-                        truncate="end"
-                        style={{ minWidth: 0 }}
-                      >
-                        {file.path.includes('/')
-                          ? file.path.slice(0, file.path.lastIndexOf('/'))
-                          : ''}
-                      </Text>
-                    </Group>
-                  </Tooltip>
-                  <Badge
-                    size="xs"
-                    variant="light"
-                    color={getStatusColor(file.status)}
-                    ml="auto"
-                    style={{ flex: '0 0 auto' }}
+                    variant="subtle"
+                    onClick={handleUnstageAll}
                   >
-                    {file.status}
-                  </Badge>
-                </Group>
-              );
-            })}
-          </ScrollArea>
+                    <IconMinus size={12} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+            <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
+              {stagedEntries.length === 0 ? (
+                <Text size="xs" c="dimmed" px="sm" py={4}>
+                  No staged changes
+                </Text>
+              ) : (
+                stagedEntries.map((file, index) => renderFileRow(file, index))
+              )}
+            </ScrollArea>
+          </Box>
+
+          {/* Divider */}
+          <Box
+            style={{
+              flex: '0 0 auto',
+              borderTop: '1px solid var(--mantine-color-gray-3)',
+            }}
+          />
+
+          {/* Unstaged section */}
+          <Box
+            style={{
+              flex: '1 1 0',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <Group
+              px="sm"
+              py={6}
+              justify="space-between"
+              style={{ flex: '0 0 auto' }}
+            >
+              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                Unstaged Changes ({unstagedEntries.length})
+              </Text>
+              {unstagedEntries.length > 0 && (
+                <Tooltip label="Stage All">
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    onClick={handleStageAll}
+                  >
+                    <IconPlus size={12} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+            <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
+              {unstagedEntries.length === 0 ? (
+                <Text size="xs" c="dimmed" px="sm" py={4}>
+                  No unstaged changes
+                </Text>
+              ) : (
+                unstagedEntries.map((file, index) =>
+                  renderFileRow(file, stagedEntries.length + index),
+                )
+              )}
+            </ScrollArea>
+          </Box>
         </Box>
 
         {/* Right pane: diff viewer */}
