@@ -99,11 +99,15 @@ const exec = (
       { cwd, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
-          reject(
-            new Error(
-              `git ${args[0]} failed: ${stderr ? `${stderr}\n${error.message}` : error.message}`,
-            ),
-          );
+          const details = [
+            `exit=${error.code ?? 'unknown'}`,
+            `signal=${error.signal ?? 'none'}`,
+            stderr ? `stderr=${stderr}` : null,
+            `stdout=${stdout}`,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          reject(new Error(`git ${args[0]} failed: ${details}`));
           return;
         }
         resolve(stdout);
