@@ -542,6 +542,23 @@ const pull = async (
   return exec(['pull', remote, branch], cwd);
 };
 
+const merge = async (
+  cwd: string,
+  ref: string,
+): Promise<{ success: boolean; output: string; hasConflicts: boolean }> => {
+  try {
+    const output = await exec(['merge', ref], cwd);
+    return { success: true, output, hasConflicts: false };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Merge failed';
+    return {
+      success: false,
+      output: msg,
+      hasConflicts: msg.includes('CONFLICT'),
+    };
+  }
+};
+
 const mergeMain = async (
   cwd: string,
 ): Promise<{ success: boolean; output: string }> => {
@@ -740,6 +757,14 @@ const getRemotes = async (cwd: string): Promise<string[]> => {
   return output.trim().split('\n').filter(Boolean);
 };
 
+const reset = async (
+  cwd: string,
+  hash: string,
+  mode: 'hard' | 'mixed' | 'soft',
+): Promise<string> => {
+  return exec(['reset', `--${mode}`, hash], cwd);
+};
+
 const fetchRemotes = async (cwd: string, remotes: string[]): Promise<void> => {
   if (remotes.length === 0) {
     await exec(['fetch', '--all'], cwd);
@@ -764,6 +789,7 @@ export const git = {
   commit,
   push,
   pull,
+  merge,
   mergeMain,
   pullAndMergeMain,
   checkout,
@@ -774,6 +800,7 @@ export const git = {
   searchFileHistory,
   findCommitByHash,
   revertCommit,
+  reset,
   getCommitDiff,
   getGraphLog,
   getRemoteUrl,

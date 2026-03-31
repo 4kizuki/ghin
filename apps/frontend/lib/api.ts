@@ -179,6 +179,31 @@ export const pullAndMergeMain = (
     body: JSON.stringify({ repo }),
   });
 
+// ─── Merge ──────────────────────────────────────────────────────────
+
+export const mergeRef = (
+  repo: string,
+  ref: string,
+): Promise<{ success: boolean; output: string; hasConflicts: boolean }> =>
+  fetchJson('/api/git/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, ref }),
+  });
+
+// ─── Reset ──────────────────────────────────────────────────────────
+
+export const resetToCommit = (
+  repo: string,
+  hash: string,
+  mode: 'hard' | 'mixed' | 'soft',
+): Promise<{ ok: boolean; output: string }> =>
+  fetchJson('/api/git/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, hash, mode }),
+  });
+
 // ─── Checkout ───────────────────────────────────────────────────────
 
 export const checkoutRef = (

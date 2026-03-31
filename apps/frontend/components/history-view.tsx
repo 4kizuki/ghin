@@ -23,8 +23,10 @@ import {
   Switch,
   Checkbox,
   Divider,
+  Menu,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
 import { Virtuoso } from 'react-virtuoso';
 import type { VirtuosoHandle, ListRange } from 'react-virtuoso';
 import {
@@ -41,6 +43,8 @@ import {
   IconSearch,
   IconCurrentLocation,
   IconUpload,
+  IconAlertTriangle,
+  IconArrowBackUp,
 } from '@tabler/icons-react';
 import {
   useSearchParams,
@@ -57,6 +61,8 @@ import {
   fetchRemotes as apiFetchRemotes,
   getRemotes as apiGetRemotes,
   updateAutoFetch,
+  mergeRef,
+  resetToCommit,
 } from '@/lib/api';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
@@ -70,6 +76,11 @@ import { BranchSwitcher } from '@/components/branch-switcher';
 import { CommitCheckoutDialog } from '@/components/commit-checkout-dialog';
 
 const noop = async (): Promise<void> => {};
+
+const extractBranchRefs = (refs: string[]): string[] =>
+  refs
+    .filter((r) => !r.startsWith('tag: ') && r !== 'HEAD')
+    .map((r) => r.replace(/^HEAD -> /, ''));
 
 export const HistoryView: FunctionComponent<{
   repoPath: string;
@@ -113,6 +124,11 @@ export const HistoryView: FunctionComponent<{
   const [checkoutTarget, setCheckoutTarget] = useState<{
     hash: string;
     hasBranchRef: boolean;
+  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    commit: CommitInfo;
   } | null>(null);
 
   // HEAD tracking
@@ -325,6 +341,85 @@ export const HistoryView: FunctionComponent<{
     await refreshStatus();
     await refreshCommits();
   }, [refreshStatus, refreshCommits]);
+
+  const handleMergeBranch = useCallback(
+    async (branch: string) => {
+      setContextMenu(null);
+      setActionLoading(true);
+      try {
+        const result = await mergeRef(repoPath, branch);
+        if (result.hasConflicts) {
+          setNotification({
+            message: 'Merge conflicts detected. Please resolve in VSCode.',
+            color: 'yellow',
+          });
+        } else if (!result.success) {
+          setNotification({ message: result.output, color: 'red' });
+        } else {
+          setNotification({
+            message: `Merged ${branch} successfully`,
+            color: 'green',
+          });
+        }
+        await refreshStatus();
+        await refreshCommits();
+      } catch (e) {
+        setNotification({
+          message: e instanceof Error ? e.message : 'Merge failed',
+          color: 'red',
+        });
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [repoPath, refreshStatus, refreshCommits],
+  );
+
+  const handleReset = useCallback(
+    (mode: 'hard' | 'mixed' | 'soft') => {
+      const commit = contextMenu?.commit;
+      setContextMenu(null);
+      if (!commit) return;
+
+      const modeLabels = {
+        hard: 'Hard reset (discard all changes)',
+        mixed: 'Mixed reset (unstage changes)',
+        soft: 'Soft reset (keep changes staged)',
+      } as const;
+
+      modals.openConfirmModal({
+        title: modeLabels[mode],
+        children: (
+          <Text size="sm">
+            Reset current branch to {commit.shortHash} ({commit.message})?
+            {mode === 'hard' && ' This will discard all uncommitted changes.'}
+          </Text>
+        ),
+        labels: { confirm: `Reset (--${mode})`, cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onConfirm: async () => {
+          setActionLoading(true);
+          try {
+            await resetToCommit(repoPath, commit.hash, mode);
+            setNotification({
+              message: `Reset (--${mode}) to ${commit.shortHash} successful`,
+              color: 'green',
+            });
+            await refreshStatus();
+            await refreshCommits();
+          } catch (e) {
+            setNotification({
+              message: e instanceof Error ? e.message : 'Reset failed',
+              color: 'red',
+            });
+          } finally {
+            setActionLoading(false);
+          }
+        },
+      });
+    },
+    [contextMenu, repoPath, refreshStatus, refreshCommits],
+  );
 
   const handlePullMerge = useCallback(async () => {
     setActionLoading(true);
@@ -595,6 +690,14 @@ export const HistoryView: FunctionComponent<{
           return (
             <Box
               onDoubleClick={() => handleCommitDoubleClick(commit)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  commit,
+                });
+              }}
               style={(theme) => ({
                 display: 'flex',
                 alignItems: 'center',
@@ -803,6 +906,66 @@ export const HistoryView: FunctionComponent<{
             ) : null,
         }}
       />
+
+      <Menu
+        opened={contextMenu !== null}
+        onChange={(opened) => {
+          if (!opened) setContextMenu(null);
+        }}
+        position="bottom-start"
+        withinPortal
+      >
+        <Menu.Target>
+          <Box
+            style={{
+              position: 'fixed',
+              left: contextMenu?.x ?? 0,
+              top: contextMenu?.y ?? 0,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        </Menu.Target>
+        <Menu.Dropdown>
+          {contextMenu &&
+            extractBranchRefs(contextMenu.commit.refs).length > 0 && (
+              <>
+                <Menu.Label>Merge</Menu.Label>
+                {extractBranchRefs(contextMenu.commit.refs).map((branch) => (
+                  <Menu.Item
+                    key={branch}
+                    leftSection={<IconGitMerge size={14} />}
+                    onClick={() => handleMergeBranch(branch)}
+                  >
+                    Merge {branch} into current branch
+                  </Menu.Item>
+                ))}
+                <Menu.Divider />
+              </>
+            )}
+          <Menu.Label>Reset</Menu.Label>
+          <Menu.Item
+            color="red"
+            leftSection={<IconAlertTriangle size={14} />}
+            onClick={() => handleReset('hard')}
+          >
+            Hard reset current branch to this commit
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconArrowBackUp size={14} />}
+            onClick={() => handleReset('mixed')}
+          >
+            Mixed reset current branch to this commit
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconArrowBackUp size={14} />}
+            onClick={() => handleReset('soft')}
+          >
+            Soft reset current branch to this commit
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
 
       <Drawer
         opened={selectedHash !== null}
