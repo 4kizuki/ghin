@@ -453,8 +453,10 @@ export const HistoryView: FunctionComponent<{
     setActionLoading(true);
     try {
       await pushChanges(repoPath, !status?.upstream);
+      await apiFetchRemotes(repoPath, selectedRemotes);
       notifications.show({ message: 'Push successful', color: 'green' });
       await refreshStatus();
+      await refreshCommits();
     } catch (e) {
       notifications.show({
         message: e instanceof Error ? e.message : 'Push failed',
@@ -463,7 +465,13 @@ export const HistoryView: FunctionComponent<{
     } finally {
       setActionLoading(false);
     }
-  }, [repoPath, status?.upstream, refreshStatus]);
+  }, [
+    repoPath,
+    status?.upstream,
+    selectedRemotes,
+    refreshStatus,
+    refreshCommits,
+  ]);
 
   const shortcuts = useMemo(
     () => [
