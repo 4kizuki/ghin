@@ -529,6 +529,18 @@ export const ChangesView: FunctionComponent<{
         </Group>
 
         <Group gap="xs">
+          <SegmentedControl
+            size="xs"
+            value={diffFontSize}
+            onChange={(v) => {
+              if (isDiffFontSize(v)) setDiffFontSize(v);
+            }}
+            data={[
+              { label: 'XS', value: 'xs' },
+              { label: 'S', value: 's' },
+              { label: 'N', value: 'n' },
+            ]}
+          />
           <Button
             size="xs"
             variant="light"
@@ -695,20 +707,6 @@ export const ChangesView: FunctionComponent<{
             overflow: 'hidden',
           }}
         >
-          <Group justify="flex-end" px="xs" py={4}>
-            <SegmentedControl
-              size="xs"
-              value={diffFontSize}
-              onChange={(v) => {
-                if (isDiffFontSize(v)) setDiffFontSize(v);
-              }}
-              data={[
-                { label: 'XS', value: 'xs' },
-                { label: 'S', value: 's' },
-                { label: 'N', value: 'n' },
-              ]}
-            />
-          </Group>
           {loadingDiff ? (
             <Group justify="center" pt="xl">
               <Loader size="sm" />
