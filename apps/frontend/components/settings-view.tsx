@@ -76,20 +76,29 @@ export const SettingsView: FunctionComponent<{
 
   const handleCustomModelChange = useCallback((value: string) => {
     setCustomModel(value);
-    if (value) {
-      setSetting('aiModel', value);
-    }
   }, []);
+
+  const handleCustomModelBlur = useCallback(() => {
+    if (customModel) {
+      setSetting('aiModel', customModel);
+    }
+  }, [customModel]);
 
   const handleAuthorNameChange = useCallback((value: string) => {
     setAuthorName(value);
-    setSetting('defaultAuthorName', value);
   }, []);
+
+  const handleAuthorNameBlur = useCallback(() => {
+    setSetting('defaultAuthorName', authorName);
+  }, [authorName]);
 
   const handleAuthorEmailChange = useCallback((value: string) => {
     setAuthorEmail(value);
-    setSetting('defaultAuthorEmail', value);
   }, []);
+
+  const handleAuthorEmailBlur = useCallback(() => {
+    setSetting('defaultAuthorEmail', authorEmail);
+  }, [authorEmail]);
 
   return (
     <Stack gap="lg">
@@ -125,6 +134,7 @@ export const SettingsView: FunctionComponent<{
             placeholder="Enter model name"
             value={customModel}
             onChange={(e) => handleCustomModelChange(e.currentTarget.value)}
+            onBlur={handleCustomModelBlur}
             disabled={!aiEnabled}
           />
         )}
@@ -155,6 +165,7 @@ export const SettingsView: FunctionComponent<{
         placeholder="Your Name"
         value={authorName}
         onChange={(e) => handleAuthorNameChange(e.currentTarget.value)}
+        onBlur={handleAuthorNameBlur}
       />
 
       <TextInput
@@ -162,6 +173,7 @@ export const SettingsView: FunctionComponent<{
         placeholder="you@example.com"
         value={authorEmail}
         onChange={(e) => handleAuthorEmailChange(e.currentTarget.value)}
+        onBlur={handleAuthorEmailBlur}
       />
 
       <Text size="xs" c="dimmed">
