@@ -1,10 +1,10 @@
 'use client';
 
 import type { FunctionComponent } from 'react';
-import { useEffect } from 'react';
 import { Group, Loader } from '@mantine/core';
 import { useRepoStatus } from '@/contexts/repo-status-context';
 import { ChangesView } from '@/components/changes-view';
+import { usePolling } from '@/hooks/use-polling';
 
 export const ChangesPageClient: FunctionComponent<{
   initialAutoPush: boolean;
@@ -19,9 +19,7 @@ export const ChangesPageClient: FunctionComponent<{
 }) => {
   const { repoPath, status, refreshStatus } = useRepoStatus();
 
-  useEffect(() => {
-    refreshStatus();
-  }, [refreshStatus]);
+  usePolling(refreshStatus, 5_000, true, 120_000);
 
   if (!status) {
     return (

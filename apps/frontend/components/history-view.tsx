@@ -294,7 +294,7 @@ export const HistoryView: FunctionComponent<{
   }, [repoPath]);
 
   // Auto-refresh commits when auto-fetch is enabled
-  usePolling(refreshCommits, 60_000, autoFetch);
+  usePolling(refreshCommits, 5_000, autoFetch, 120_000);
 
   // Load diff when selectedHash changes (including on initial load from URL)
   useEffect(() => {
