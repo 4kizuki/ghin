@@ -17,6 +17,7 @@ import {
   ActionIcon,
   Badge,
   Loader,
+  Modal,
   SegmentedControl,
   Notification,
 } from '@mantine/core';
@@ -117,7 +118,6 @@ export const ChangesView: FunctionComponent<{
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [commitMsg, setCommitMsg] = useState('');
   const [newBranchName, setNewBranchName] = useState('');
-  const [showNewBranch, setShowNewBranch] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [autoPush, setAutoPush] = useState(initialAutoPush);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -132,6 +132,8 @@ export const ChangesView: FunctionComponent<{
   const [searchOpened, { open: openSearch, close: closeSearch }] =
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
+    useDisclosure(false);
+  const [newBranchOpened, { open: openNewBranch, close: closeNewBranch }] =
     useDisclosure(false);
 
   const totalChanges =
@@ -249,22 +251,36 @@ export const ChangesView: FunctionComponent<{
     if (!commitMsg.trim()) return;
     setCommitting(true);
     try {
-      await commitChanges(
-        repoPath,
-        commitMsg.trim(),
-        showNewBranch ? newBranchName.trim() || undefined : undefined,
-        autoPush,
-      );
+      await commitChanges(repoPath, commitMsg.trim(), undefined, autoPush);
       setCommitMsg('');
-      setNewBranchName('');
-      setShowNewBranch(false);
       await onRefresh();
     } catch {
       // error handled via notification in parent
     } finally {
       setCommitting(false);
     }
-  }, [repoPath, commitMsg, showNewBranch, newBranchName, autoPush, onRefresh]);
+  }, [repoPath, commitMsg, autoPush, onRefresh]);
+
+  const handleCommitToNewBranch = useCallback(async () => {
+    if (!commitMsg.trim() || !newBranchName.trim()) return;
+    setCommitting(true);
+    try {
+      await commitChanges(
+        repoPath,
+        commitMsg.trim(),
+        newBranchName.trim(),
+        autoPush,
+      );
+      setCommitMsg('');
+      setNewBranchName('');
+      closeNewBranch();
+      await onRefresh();
+    } catch {
+      // error handled via notification in parent
+    } finally {
+      setCommitting(false);
+    }
+  }, [repoPath, commitMsg, newBranchName, autoPush, onRefresh, closeNewBranch]);
 
   const handleAutoPushToggle = useCallback((checked: boolean) => {
     setAutoPush(checked);
