@@ -23,6 +23,7 @@
     "next": "^16.1",
     "react": "^19.2",
     "react-dom": "^19.2",
+    "react-virtuoso": "^4.18.3",
     "server-only": "^0.0.1",
     "zod": "^4.3.6"
   },

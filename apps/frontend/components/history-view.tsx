@@ -14,6 +14,9 @@ import {
   HoverCard,
   Loader,
   Drawer,
+  SegmentedControl,
+  Stack,
+  CloseButton,
 } from '@mantine/core';
 import {
   IconArrowBackUp,
@@ -25,7 +28,8 @@ import { modals } from '@mantine/modals';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { CommitInfo, FileDiff } from '@/lib/git';
 import { getLog, getCommitDiff, revertCommit } from '@/lib/api';
-import { DiffViewer } from '@/components/diff-viewer';
+import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
+import { useDiffFontSize } from '@/hooks/use-diff-font-size';
 import { computeGraphLayout } from '@/lib/graph-layout';
 import { CommitGraphRow, ROW_HEIGHT } from '@/components/commit-graph';
 
@@ -39,6 +43,7 @@ export const HistoryView: FunctionComponent<{
   const [loading, setLoading] = useState(!initialCommits);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const [copyFeedback, setCopyFeedback] = useState<{
     x: number;
     y: number;
@@ -224,7 +229,12 @@ export const HistoryView: FunctionComponent<{
                   scrollbarWidth: 'none',
                 }}
               >
-                <HoverCard position="top" shadow="sm" withinPortal>
+                <HoverCard
+                  position="top"
+                  shadow="sm"
+                  withinPortal
+                  openDelay={750}
+                >
                   <HoverCard.Target>
                     <Text
                       size="xs"
@@ -261,7 +271,12 @@ export const HistoryView: FunctionComponent<{
                 )}
               </Box>
 
-              <HoverCard position="top" shadow="sm" withinPortal>
+              <HoverCard
+                position="top"
+                shadow="sm"
+                withinPortal
+                openDelay={750}
+              >
                 <HoverCard.Target>
                   <Text
                     size="xs"
@@ -303,7 +318,12 @@ export const HistoryView: FunctionComponent<{
                 </HoverCard.Dropdown>
               </HoverCard>
 
-              <HoverCard position="top" shadow="sm" withinPortal>
+              <HoverCard
+                position="top"
+                shadow="sm"
+                withinPortal
+                openDelay={750}
+              >
                 <HoverCard.Target>
                   <Text
                     size="xs"
@@ -387,29 +407,61 @@ export const HistoryView: FunctionComponent<{
         lockScroll={false}
         withOverlay={false}
         withinPortal={false}
+        withCloseButton={false}
         styles={{
           content: {
             borderLeft: '2px solid var(--mantine-color-gray-4)',
+            overflowX: 'hidden',
+          },
+          header: {
+            alignItems: 'flex-start',
+            overflow: 'hidden',
+          },
+          title: {
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+          },
+          body: {
+            height: 'calc(100% - 80px)',
+            overflow: 'hidden',
           },
         }}
         title={
           selectedCommit && (
-            <Box>
-              <Text size="sm" fw={600}>
-                {selectedCommit.message}
-              </Text>
-              <Group gap="xs">
-                <Text size="xs" c="dimmed" ff="monospace">
-                  {selectedCommit.shortHash}
+            <Group justify="space-between" wrap="nowrap" w="100%">
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text size="sm" fw={600} truncate="end">
+                  {selectedCommit.message}
                 </Text>
-                <Text size="xs" c="dimmed">
-                  {selectedCommit.author}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {new Date(selectedCommit.date).toLocaleString('ja-JP')}
-                </Text>
-              </Group>
-            </Box>
+                <Group gap="xs">
+                  <Text size="xs" c="dimmed" ff="monospace">
+                    {selectedCommit.shortHash}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {selectedCommit.author}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(selectedCommit.date).toLocaleString('ja-JP')}
+                  </Text>
+                </Group>
+              </Stack>
+              <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
+                <CloseButton size="sm" onClick={() => setSelectedHash(null)} />
+                <SegmentedControl
+                  size="xs"
+                  value={diffFontSize}
+                  onChange={(v) => {
+                    if (isDiffFontSize(v)) setDiffFontSize(v);
+                  }}
+                  data={[
+                    { label: 'XS', value: 'xs' },
+                    { label: 'S', value: 's' },
+                    { label: 'N', value: 'n' },
+                  ]}
+                />
+              </Stack>
+            </Group>
           )
         }
       >
@@ -421,6 +473,8 @@ export const HistoryView: FunctionComponent<{
           <DiffViewer
             files={commitDiff}
             staged={false}
+            readOnly
+            diffFontSize={diffFontSize}
             onStageHunk={noop}
             onUnstageHunk={noop}
           />

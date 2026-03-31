@@ -16,6 +16,7 @@ import {
   ActionIcon,
   Badge,
   Loader,
+  SegmentedControl,
 } from '@mantine/core';
 import {
   IconGitBranch,
@@ -36,7 +37,8 @@ import {
   setSetting,
 } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
-import { DiffViewer } from '@/components/diff-viewer';
+import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
+import { useDiffFontSize } from '@/hooks/use-diff-font-size';
 import { NeverError } from '@repo/never-error';
 
 type FileEntry = {
@@ -102,6 +104,7 @@ export const ChangesView: FunctionComponent<{
   const [committing, setCommitting] = useState(false);
   const [autoPush, setAutoPush] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const commitInputRef = useRef<HTMLInputElement>(null);
 
   // Load auto-push setting
@@ -397,6 +400,20 @@ export const ChangesView: FunctionComponent<{
             overflow: 'hidden',
           }}
         >
+          <Group justify="flex-end" px="xs" py={4}>
+            <SegmentedControl
+              size="xs"
+              value={diffFontSize}
+              onChange={(v) => {
+                if (isDiffFontSize(v)) setDiffFontSize(v);
+              }}
+              data={[
+                { label: 'XS', value: 'xs' },
+                { label: 'S', value: 's' },
+                { label: 'N', value: 'n' },
+              ]}
+            />
+          </Group>
           {loadingDiff ? (
             <Group justify="center" pt="xl">
               <Loader size="sm" />
@@ -405,6 +422,7 @@ export const ChangesView: FunctionComponent<{
             <DiffViewer
               files={diff}
               staged={selectedFileStaged}
+              diffFontSize={diffFontSize}
               onStageHunk={handleHunkStage}
               onUnstageHunk={handleHunkUnstage}
             />

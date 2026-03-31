@@ -204,6 +204,8 @@ const parseDiff = (diffOutput: string): FileDiff[] => {
 
     const hunks: Hunk[] = [];
     let currentHunk: Hunk | null = null;
+    let oldLine = 0;
+    let newLine = 0;
 
     for (const line of lines) {
       if (line.startsWith('@@')) {
@@ -218,44 +220,38 @@ const parseDiff = (diffOutput: string): FileDiff[] => {
           lines: [],
         };
         hunks.push(currentHunk);
+        oldLine = oldStart;
+        newLine = newStart;
         continue;
       }
 
       if (!currentHunk) continue;
 
       if (line.startsWith('+')) {
-        const lastNew = currentHunk.lines.filter(
-          (l) => l.type !== 'remove',
-        ).length;
         currentHunk.lines.push({
           type: 'add',
           content: line.slice(1),
           oldLineNumber: null,
-          newLineNumber: currentHunk.newStart + lastNew,
+          newLineNumber: newLine,
         });
+        newLine++;
       } else if (line.startsWith('-')) {
-        const lastOld = currentHunk.lines.filter(
-          (l) => l.type !== 'add',
-        ).length;
         currentHunk.lines.push({
           type: 'remove',
           content: line.slice(1),
-          oldLineNumber: currentHunk.oldStart + lastOld,
+          oldLineNumber: oldLine,
           newLineNumber: null,
         });
+        oldLine++;
       } else if (line.startsWith(' ')) {
-        const lastOld = currentHunk.lines.filter(
-          (l) => l.type !== 'add',
-        ).length;
-        const lastNew = currentHunk.lines.filter(
-          (l) => l.type !== 'remove',
-        ).length;
         currentHunk.lines.push({
           type: 'context',
           content: line.slice(1),
-          oldLineNumber: currentHunk.oldStart + lastOld,
-          newLineNumber: currentHunk.newStart + lastNew,
+          oldLineNumber: oldLine,
+          newLineNumber: newLine,
         });
+        oldLine++;
+        newLine++;
       }
     }
 
