@@ -13,7 +13,7 @@ const shortcuts = [
   { keys: ['Space'], description: 'Toggle stage/unstage' },
   { keys: ['⌘', '1-9'], description: 'Switch repo tab' },
   { keys: ['⌘', 'B'], description: 'Switch branch' },
-  { keys: ['?'], description: 'Show this help' },
+  { keys: ['/'], description: 'Show this help' },
 ] as const;
 
 export const ShortcutsHelp: FunctionComponent<{
