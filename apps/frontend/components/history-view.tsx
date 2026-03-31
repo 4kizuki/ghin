@@ -1,7 +1,7 @@
 'use client';
 
 import type { FunctionComponent } from 'react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   ScrollArea,
@@ -10,10 +10,17 @@ import {
   Badge,
   ActionIcon,
   Tooltip,
+  CopyButton,
+  HoverCard,
   Loader,
   Drawer,
 } from '@mantine/core';
-import { IconArrowBackUp, IconFileCode } from '@tabler/icons-react';
+import {
+  IconArrowBackUp,
+  IconCheck,
+  IconCopy,
+  IconFileCode,
+} from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { CommitInfo, FileDiff } from '@/lib/git';
@@ -32,6 +39,29 @@ export const HistoryView: FunctionComponent<{
   const [loading, setLoading] = useState(!initialCommits);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<{
+    x: number;
+    y: number;
+    fading: boolean;
+  } | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const copyFadeRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const showCopyFeedback = useCallback(
+    (e: React.MouseEvent, text: string) => {
+      navigator.clipboard.writeText(text);
+      clearTimeout(copyTimerRef.current);
+      clearTimeout(copyFadeRef.current);
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCopyFeedback({ x: rect.right + 4, y: rect.bottom - 4, fading: false });
+      copyFadeRef.current = setTimeout(
+        () => setCopyFeedback((prev) => (prev ? { ...prev, fading: true } : null)),
+        250,
+      );
+      copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 750);
+    },
+    [],
+  );
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -199,27 +229,93 @@ export const HistoryView: FunctionComponent<{
                 </Group>
               )}
 
-              <Text
-                size="xs"
-                c="dimmed"
-                ml="xs"
-                ff="monospace"
-                style={{ flexShrink: 0 }}
-              >
-                {commit.shortHash}
-              </Text>
+              <HoverCard position="top" shadow="sm" withinPortal>
+                <HoverCard.Target>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    ml="xs"
+                    ff="monospace"
+                    style={{
+                      flexShrink: 0,
+                      width: 64,
+                      cursor: 'copy',
+                    }}
+                    onClick={(e) => showCopyFeedback(e, commit.shortHash)}
+                  >
+                    {commit.shortHash}
+                  </Text>
+                </HoverCard.Target>
+                <HoverCard.Dropdown p="xs">
+                  <Group gap={4} align="center">
+                    <Text size="xs" ff="monospace">
+                      {commit.hash}
+                    </Text>
+                    <CopyButton value={commit.hash}>
+                      {({ copied, copy }) => (
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color={copied ? 'teal' : 'gray'}
+                          onClick={copy}
+                        >
+                          {copied ? (
+                            <IconCheck size={12} />
+                          ) : (
+                            <IconCopy size={12} />
+                          )}
+                        </ActionIcon>
+                      )}
+                    </CopyButton>
+                  </Group>
+                </HoverCard.Dropdown>
+              </HoverCard>
 
-              <Text
-                size="xs"
-                c="dimmed"
-                ml="xs"
-                truncate="end"
-                style={{ flexShrink: 0, maxWidth: 120 }}
-              >
-                {commit.author}
-              </Text>
+              <HoverCard position="top" shadow="sm" withinPortal>
+                <HoverCard.Target>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    ml="xs"
+                    truncate="end"
+                    style={{
+                      flexShrink: 0,
+                      width: 120,
+                      cursor: 'copy',
+                    }}
+                    onClick={(e) => showCopyFeedback(e, commit.author)}
+                  >
+                    {commit.author}
+                  </Text>
+                </HoverCard.Target>
+                <HoverCard.Dropdown p="xs">
+                  <Group gap={4} align="center">
+                    <Text size="xs">
+                      {commit.author} &lt;{commit.authorEmail}&gt;
+                    </Text>
+                    <CopyButton
+                      value={`${commit.author} <${commit.authorEmail}>`}
+                    >
+                      {({ copied, copy }) => (
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color={copied ? 'teal' : 'gray'}
+                          onClick={copy}
+                        >
+                          {copied ? (
+                            <IconCheck size={12} />
+                          ) : (
+                            <IconCopy size={12} />
+                          )}
+                        </ActionIcon>
+                      )}
+                    </CopyButton>
+                  </Group>
+                </HoverCard.Dropdown>
+              </HoverCard>
 
-              <Text size="xs" c="dimmed" ml="xs" style={{ flexShrink: 0 }}>
+              <Text size="xs" c="dimmed" ml="xs" style={{ flexShrink: 0, width: 130 }}>
                 {new Date(commit.date).toLocaleString('ja-JP', {
                   year: 'numeric',
                   month: '2-digit',
@@ -293,6 +389,25 @@ export const HistoryView: FunctionComponent<{
           />
         )}
       </Drawer>
+
+      {copyFeedback && (
+        <Text
+          size="xs"
+          fw={600}
+          c="teal"
+          style={{
+            position: 'fixed',
+            right: `calc(100vw - ${String(copyFeedback.x)}px)`,
+            top: copyFeedback.y,
+            pointerEvents: 'none',
+            zIndex: 1000,
+            opacity: copyFeedback.fading ? 0 : 1,
+            transition: copyFeedback.fading ? 'opacity 500ms ease-out' : 'none',
+          }}
+        >
+          Copied
+        </Text>
+      )}
     </Box>
   );
 };
