@@ -4,7 +4,6 @@ import type { FunctionComponent } from 'react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
-  ScrollArea,
   Text,
   Group,
   Badge,
@@ -18,6 +17,7 @@ import {
   Stack,
   CloseButton,
 } from '@mantine/core';
+import { Virtuoso } from 'react-virtuoso';
 import {
   IconArrowBackUp,
   IconCheck,
@@ -39,8 +39,14 @@ export const HistoryView: FunctionComponent<{
   repoPath: string;
   initialCommits?: CommitInfo[];
 }> = ({ repoPath, initialCommits }) => {
+  const PAGE_SIZE = 200;
   const [commits, setCommits] = useState<CommitInfo[]>(initialCommits ?? []);
   const [loading, setLoading] = useState(!initialCommits);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(
+    () => (initialCommits?.length ?? 0) >= PAGE_SIZE,
+  );
+  const loadingMoreRef = useRef(false);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
@@ -93,21 +99,42 @@ export const HistoryView: FunctionComponent<{
 
   const graphLayout = useMemo(() => computeGraphLayout(commits), [commits]);
 
-  const loadCommits = useCallback(async () => {
+  const refreshCommits = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getLog(repoPath, 200);
+      const data = await getLog(repoPath, PAGE_SIZE);
       setCommits(data);
+      setHasMore(data.length >= PAGE_SIZE);
     } catch {
       setCommits([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
   }, [repoPath]);
 
   useEffect(() => {
-    loadCommits();
-  }, [loadCommits]);
+    if (initialCommits) return;
+    refreshCommits();
+  }, [initialCommits, refreshCommits]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const newCommits = await getLog(repoPath, PAGE_SIZE, commits.length);
+      if (newCommits.length > 0) {
+        setCommits((prev) => [...prev, ...newCommits]);
+      }
+      setHasMore(newCommits.length >= PAGE_SIZE);
+    } catch {
+      setHasMore(false);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [repoPath, commits.length, hasMore]);
 
   // Load diff when selectedHash changes (including on initial load from URL)
   useEffect(() => {
@@ -156,11 +183,11 @@ export const HistoryView: FunctionComponent<{
         confirmProps: { color: 'red' },
         onConfirm: async () => {
           await revertCommit(repoPath, commit.hash);
-          loadCommits();
+          refreshCommits();
         },
       });
     },
-    [repoPath, loadCommits],
+    [repoPath, refreshCommits],
   );
 
   if (loading) {
@@ -182,16 +209,21 @@ export const HistoryView: FunctionComponent<{
     >
       <Group px="sm" py={6}>
         <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-          Commits ({commits.length})
+          Commits ({commits.length}
+          {hasMore ? '+' : ''})
         </Text>
       </Group>
 
-      <ScrollArea style={{ flex: 1 }}>
-        {commits.map((commit, index) => {
+      <Virtuoso
+        style={{ flex: 1 }}
+        data={commits}
+        fixedItemHeight={ROW_HEIGHT}
+        endReached={loadMore}
+        overscan={200}
+        itemContent={(index, commit) => {
           const node = graphLayout.nodes[index];
           return (
             <Box
-              key={commit.hash}
               style={(theme) => ({
                 display: 'flex',
                 alignItems: 'center',
@@ -396,8 +428,16 @@ export const HistoryView: FunctionComponent<{
               </Tooltip>
             </Box>
           );
-        })}
-      </ScrollArea>
+        }}
+        components={{
+          Footer: () =>
+            loadingMore ? (
+              <Group justify="center" py="xs">
+                <Loader size="xs" />
+              </Group>
+            ) : null,
+        }}
+      />
 
       <Drawer
         opened={selectedHash !== null}
