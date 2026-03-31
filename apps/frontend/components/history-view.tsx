@@ -211,7 +211,6 @@ export const HistoryView: FunctionComponent<{
   const graphLayout = useMemo(() => computeGraphLayout(commits), [commits]);
 
   const refreshCommits = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await getLog(repoPath, PAGE_SIZE);
       setCommits(data);
@@ -219,14 +218,12 @@ export const HistoryView: FunctionComponent<{
     } catch {
       setCommits([]);
       setHasMore(false);
-    } finally {
-      setLoading(false);
     }
   }, [repoPath]);
 
   useEffect(() => {
     if (initialCommits) return;
-    refreshCommits();
+    refreshCommits().then(() => setLoading(false));
   }, [initialCommits, refreshCommits]);
 
   const loadMore = useCallback(async () => {
