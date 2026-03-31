@@ -37,11 +37,19 @@ const deduplicateBranches = (branches: string[]): string[] => {
 
 export const CommitCheckoutDialog: FunctionComponent<{
   commitHash: string | null;
+  hasBranchRef: boolean;
   repoPath: string;
   currentBranch: string | undefined;
   onClose: () => void;
   onCheckout: () => Promise<void>;
-}> = ({ commitHash, repoPath, currentBranch, onClose, onCheckout }) => {
+}> = ({
+  commitHash,
+  hasBranchRef,
+  repoPath,
+  currentBranch,
+  onClose,
+  onCheckout,
+}) => {
   const [status, setStatus] = useState<DialogStatus>('idle');
   const [branches, setBranches] = useState<string[]>([]);
   const [newBranchName, setNewBranchName] = useState('');
@@ -64,8 +72,14 @@ export const CommitCheckoutDialog: FunctionComponent<{
     }
 
     hashRef.current = commitHash;
-    setStatus('loading');
     setError(null);
+
+    if (!hasBranchRef) {
+      setStatus('create');
+      return;
+    }
+
+    setStatus('loading');
 
     getBranchesContaining(repoPath, commitHash)
       .then(async (result) => {
@@ -108,7 +122,7 @@ export const CommitCheckoutDialog: FunctionComponent<{
         setError(e instanceof Error ? e.message : 'Failed to load branches');
         setStatus('create');
       });
-  }, [commitHash, repoPath, currentBranch, onClose, onCheckout]);
+  }, [commitHash, hasBranchRef, repoPath, currentBranch, onClose, onCheckout]);
 
   const handleCheckoutBranch = useCallback(
     async (branch: string) => {

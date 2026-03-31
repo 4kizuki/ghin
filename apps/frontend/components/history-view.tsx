@@ -110,9 +110,10 @@ export const HistoryView: FunctionComponent<{
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
-  const [checkoutCommitHash, setCheckoutCommitHash] = useState<string | null>(
-    null,
-  );
+  const [checkoutTarget, setCheckoutTarget] = useState<{
+    hash: string;
+    hasBranchRef: boolean;
+  } | null>(null);
 
   // HEAD tracking
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -316,7 +317,8 @@ export const HistoryView: FunctionComponent<{
   );
 
   const handleCommitDoubleClick = useCallback((commit: CommitInfo) => {
-    setCheckoutCommitHash(commit.hash);
+    const hasBranchRef = commit.refs.some((ref) => !ref.startsWith('tag: '));
+    setCheckoutTarget({ hash: commit.hash, hasBranchRef });
   }, []);
 
   const handlePostCheckout = useCallback(async () => {
@@ -901,10 +903,11 @@ export const HistoryView: FunctionComponent<{
       />
 
       <CommitCheckoutDialog
-        commitHash={checkoutCommitHash}
+        commitHash={checkoutTarget?.hash ?? null}
+        hasBranchRef={checkoutTarget?.hasBranchRef ?? false}
         repoPath={repoPath}
         currentBranch={status?.branch}
-        onClose={() => setCheckoutCommitHash(null)}
+        onClose={() => setCheckoutTarget(null)}
         onCheckout={handlePostCheckout}
       />
 
