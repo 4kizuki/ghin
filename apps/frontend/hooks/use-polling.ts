@@ -1,19 +1,28 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const usePolling = (
   callback: () => void,
   intervalMs: number,
   enabled: boolean,
 ): void => {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
   useEffect(() => {
     if (!enabled) return;
 
-    callback();
-    const id = setInterval(callback, intervalMs);
+    const start = (): NodeJS.Timeout => {
+      callbackRef.current();
+      return setInterval(() => callbackRef.current(), intervalMs);
+    };
+
+    let id = start();
 
     const onVisibilityChange = (): void => {
       if (document.hidden) {
         clearInterval(id);
+      } else {
+        id = start();
       }
     };
 
@@ -23,6 +32,5 @@ export const usePolling = (
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, intervalMs]);
 };
