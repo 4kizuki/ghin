@@ -182,7 +182,12 @@ const HunkView: FunctionComponent<{
         <Code style={{ fontSize: 11 }}>{hunk.header}</Code>
       </Group>
 
-      <Box style={{ fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace', fontSize: 12 }}>
+      <Box
+        style={{
+          fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+          fontSize: 12,
+        }}
+      >
         {hunk.lines.map((line, lineIdx) => {
           const isSelected = selectedLines.has(lineIdx);
           const bgColor =
@@ -224,7 +229,8 @@ const HunkView: FunctionComponent<{
                   width: 40,
                   textAlign: 'right',
                   flexShrink: 0,
-                  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+                  fontFamily:
+                    'Menlo, Monaco, Consolas, "Courier New", monospace',
                 }}
               >
                 {line.oldLineNumber ?? ''}
@@ -236,7 +242,8 @@ const HunkView: FunctionComponent<{
                   width: 40,
                   textAlign: 'right',
                   flexShrink: 0,
-                  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+                  fontFamily:
+                    'Menlo, Monaco, Consolas, "Courier New", monospace',
                 }}
               >
                 {line.newLineNumber ?? ''}
@@ -252,7 +259,8 @@ const HunkView: FunctionComponent<{
                 }
                 style={{
                   whiteSpace: 'pre',
-                  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+                  fontFamily:
+                    'Menlo, Monaco, Consolas, "Courier New", monospace',
                   paddingLeft: 8,
                 }}
               >

@@ -8,13 +8,14 @@ import {
   Text,
   Group,
   Badge,
-  Stack,
   ActionIcon,
   Tooltip,
   Loader,
+  Drawer,
 } from '@mantine/core';
-import { IconArrowBackUp } from '@tabler/icons-react';
+import { IconArrowBackUp, IconFileCode } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { CommitInfo, FileDiff } from '@/lib/git';
 import { getLog, getCommitDiff, revertCommit } from '@/lib/api';
 import { DiffViewer } from '@/components/diff-viewer';
@@ -29,14 +30,35 @@ export const HistoryView: FunctionComponent<{
 }> = ({ repoPath, initialCommits }) => {
   const [commits, setCommits] = useState<CommitInfo[]>(initialCommits ?? []);
   const [loading, setLoading] = useState(!initialCommits);
-  const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
 
-  const graphLayout = useMemo(
-    () => computeGraphLayout(commits),
-    [commits],
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const selectedHash = searchParams.get('commit');
+
+  const selectedCommit = useMemo(
+    () => commits.find((c) => c.hash === selectedHash) ?? null,
+    [commits, selectedHash],
   );
+
+  const setSelectedHash = useCallback(
+    (hash: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (hash) {
+        params.set('commit', hash);
+      } else {
+        params.delete('commit');
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [searchParams, router, pathname],
+  );
+
+  const graphLayout = useMemo(() => computeGraphLayout(commits), [commits]);
 
   const loadCommits = useCallback(async () => {
     setLoading(true);
@@ -54,20 +76,38 @@ export const HistoryView: FunctionComponent<{
     loadCommits();
   }, [loadCommits]);
 
-  const handleSelectCommit = useCallback(
-    async (commit: CommitInfo) => {
-      setSelectedCommit(commit);
-      setLoadingDiff(true);
-      try {
-        const diff = await getCommitDiff(repoPath, commit.hash);
-        setCommitDiff(diff);
-      } catch {
-        setCommitDiff([]);
-      } finally {
-        setLoadingDiff(false);
+  // Load diff when selectedHash changes (including on initial load from URL)
+  useEffect(() => {
+    if (!selectedHash) {
+      setCommitDiff([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDiff(true);
+    getCommitDiff(repoPath, selectedHash)
+      .then((diff) => {
+        if (!cancelled) setCommitDiff(diff);
+      })
+      .catch(() => {
+        if (!cancelled) setCommitDiff([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDiff(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, selectedHash]);
+
+  const handleToggleDiff = useCallback(
+    (commit: CommitInfo) => {
+      if (selectedHash === commit.hash) {
+        setSelectedHash(null);
+      } else {
+        setSelectedHash(commit.hash);
       }
     },
-    [repoPath],
+    [selectedHash, setSelectedHash],
   );
 
   const handleRevert = useCallback(
@@ -102,137 +142,132 @@ export const HistoryView: FunctionComponent<{
     <Box
       style={{
         display: 'flex',
+        flexDirection: 'column',
         height: '100%',
         overflow: 'hidden',
       }}
     >
-      {/* Commit list with graph */}
-      <Box
-        style={{
-          width: 480,
-          minWidth: 320,
-          borderRight: '1px solid var(--mantine-color-gray-3)',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
-        <Group px="sm" py={6}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-            Commits ({commits.length})
-          </Text>
-        </Group>
-        <ScrollArea style={{ flex: 1 }}>
-          {commits.map((commit, index) => {
-            const node = graphLayout.nodes[index];
-            return (
-              <Box
-                key={commit.hash}
-                style={(theme) => ({
-                  display: 'flex',
-                  alignItems: 'center',
-                  height: ROW_HEIGHT,
-                  cursor: 'pointer',
-                  backgroundColor:
-                    selectedCommit?.hash === commit.hash
-                      ? theme.colors.blue[0]
-                      : undefined,
-                  borderBottom: `1px solid ${theme.colors.gray[1]}`,
-                })}
-                onClick={() => handleSelectCommit(commit)}
-              >
-                <CommitGraphRow
-                  node={node}
-                  maxLane={graphLayout.maxLane}
-                />
-                <Stack
-                  gap={0}
-                  style={{
-                    minWidth: 0,
-                    flex: 1,
-                    overflow: 'hidden',
-                    paddingRight: 8,
-                  }}
-                >
-                  <Text size="xs" fw={500} truncate="end">
-                    {commit.message}
-                  </Text>
-                  <Group gap="xs" wrap="nowrap">
-                    <Text size="xs" c="dimmed">
-                      {commit.shortHash}
-                    </Text>
-                    <Text size="xs" c="dimmed" truncate="end">
-                      {commit.author}
-                    </Text>
-                    <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                      {new Date(commit.date).toLocaleDateString('ja-JP')}
-                    </Text>
-                  </Group>
-                  {commit.refs.length > 0 && (
-                    <Group gap={4} wrap="nowrap" style={{ overflow: 'hidden' }}>
-                      {commit.refs.map((ref) => (
-                        <Badge
-                          key={ref}
-                          size="xs"
-                          variant="light"
-                          style={{ flexShrink: 0 }}
-                        >
-                          {ref}
-                        </Badge>
-                      ))}
-                    </Group>
-                  )}
-                </Stack>
-                <Tooltip label="Revert">
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    mr="xs"
-                    style={{ flexShrink: 0 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRevert(commit);
-                    }}
-                  >
-                    <IconArrowBackUp size={12} />
-                  </ActionIcon>
-                </Tooltip>
-              </Box>
-            );
-          })}
-        </ScrollArea>
-      </Box>
+      <Group px="sm" py={6}>
+        <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+          Commits ({commits.length})
+        </Text>
+      </Group>
 
-      {/* Commit diff */}
-      <Box
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          minHeight: 0,
-        }}
-      >
-        {loadingDiff ? (
-          <Group justify="center" pt="xl">
-            <Loader size="sm" />
-          </Group>
-        ) : selectedCommit ? (
-          <>
+      <ScrollArea style={{ flex: 1 }}>
+        {commits.map((commit, index) => {
+          const node = graphLayout.nodes[index];
+          return (
             <Box
-              px="sm"
-              py={6}
-              style={{
-                borderBottom: '1px solid var(--mantine-color-gray-3)',
-              }}
+              key={commit.hash}
+              style={(theme) => ({
+                display: 'flex',
+                alignItems: 'center',
+                height: ROW_HEIGHT,
+                borderBottom: `1px solid ${theme.colors.gray[1]}`,
+              })}
             >
+              <Tooltip label="View diff">
+                <ActionIcon
+                  size="xs"
+                  variant={selectedHash === commit.hash ? 'filled' : 'subtle'}
+                  ml={4}
+                  style={{ flexShrink: 0 }}
+                  onClick={() => handleToggleDiff(commit)}
+                >
+                  <IconFileCode size={14} />
+                </ActionIcon>
+              </Tooltip>
+
+              <CommitGraphRow node={node} maxLane={graphLayout.maxLane} />
+
+              <Text
+                size="xs"
+                fw={500}
+                truncate="end"
+                style={{ flex: 1, minWidth: 0 }}
+              >
+                {commit.message}
+              </Text>
+
+              {commit.refs.length > 0 && (
+                <Group gap={4} wrap="nowrap" ml="xs" style={{ flexShrink: 0 }}>
+                  {commit.refs.map((ref) => (
+                    <Badge key={ref} size="xs" variant="light">
+                      {ref}
+                    </Badge>
+                  ))}
+                </Group>
+              )}
+
+              <Text
+                size="xs"
+                c="dimmed"
+                ml="xs"
+                ff="monospace"
+                style={{ flexShrink: 0 }}
+              >
+                {commit.shortHash}
+              </Text>
+
+              <Text
+                size="xs"
+                c="dimmed"
+                ml="xs"
+                truncate="end"
+                style={{ flexShrink: 0, maxWidth: 120 }}
+              >
+                {commit.author}
+              </Text>
+
+              <Text size="xs" c="dimmed" ml="xs" style={{ flexShrink: 0 }}>
+                {new Date(commit.date).toLocaleString('ja-JP', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+
+              <Tooltip label="Revert">
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  mx="xs"
+                  style={{ flexShrink: 0 }}
+                  onClick={() => handleRevert(commit)}
+                >
+                  <IconArrowBackUp size={12} />
+                </ActionIcon>
+              </Tooltip>
+            </Box>
+          );
+        })}
+      </ScrollArea>
+
+      <Drawer
+        opened={selectedHash !== null}
+        onClose={() => setSelectedHash(null)}
+        position="right"
+        size="60%"
+        lockScroll={false}
+        withOverlay={false}
+        withinPortal={false}
+        styles={{
+          content: {
+            borderLeft: '2px solid var(--mantine-color-gray-4)',
+          },
+        }}
+        title={
+          selectedCommit && (
+            <Box>
               <Text size="sm" fw={600}>
                 {selectedCommit.message}
               </Text>
               <Group gap="xs">
-                <Text size="xs" c="dimmed">
-                  {selectedCommit.hash}
+                <Text size="xs" c="dimmed" ff="monospace">
+                  {selectedCommit.shortHash}
                 </Text>
                 <Text size="xs" c="dimmed">
                   {selectedCommit.author}
@@ -242,21 +277,22 @@ export const HistoryView: FunctionComponent<{
                 </Text>
               </Group>
             </Box>
-            <DiffViewer
-              files={commitDiff}
-              staged={false}
-              onStageHunk={noop}
-              onUnstageHunk={noop}
-            />
-          </>
-        ) : (
+          )
+        }
+      >
+        {loadingDiff ? (
           <Group justify="center" pt="xl">
-            <Text c="dimmed" size="sm">
-              Select a commit to view changes
-            </Text>
+            <Loader size="sm" />
           </Group>
+        ) : (
+          <DiffViewer
+            files={commitDiff}
+            staged={false}
+            onStageHunk={noop}
+            onUnstageHunk={noop}
+          />
         )}
-      </Box>
+      </Drawer>
     </Box>
   );
 };
