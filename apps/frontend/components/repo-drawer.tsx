@@ -13,7 +13,12 @@ import {
   ActionIcon,
   Button,
 } from '@mantine/core';
-import { IconSearch, IconTrash, IconPlus } from '@tabler/icons-react';
+import {
+  IconSearch,
+  IconTrash,
+  IconPlus,
+  IconDownload,
+} from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import type { Repository } from '@/lib/api';
 
@@ -140,17 +145,28 @@ export const RepoDrawer: FunctionComponent<{
           )}
         </Box>
 
-        <Button
-          leftSection={<IconPlus size={16} />}
-          variant="light"
-          onClick={() => {
-            onClose();
-            router.push('/add-repository');
-          }}
-          style={{ flex: '0 0 auto' }}
-        >
-          Add Repository
-        </Button>
+        <Stack gap="xs" style={{ flex: '0 0 auto' }}>
+          <Button
+            leftSection={<IconDownload size={16} />}
+            variant="light"
+            onClick={() => {
+              onClose();
+              router.push('/clone-repository');
+            }}
+          >
+            Clone Repository
+          </Button>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            variant="light"
+            onClick={() => {
+              onClose();
+              router.push('/add-repository');
+            }}
+          >
+            Add Repository
+          </Button>
+        </Stack>
       </Stack>
     </Drawer>
   );

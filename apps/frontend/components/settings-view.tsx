@@ -11,8 +11,11 @@ import {
   Anchor,
   Group,
   Divider,
+  Button,
 } from '@mantine/core';
+import { IconFolder } from '@tabler/icons-react';
 import { setSetting } from '@/lib/api';
+import { DirectoryPickerModal } from '@/components/directory-picker-modal';
 
 const MODEL_PRESETS = [
   { value: 'gpt-5.3-codex-spark', label: 'gpt-5.3-codex-spark' },
@@ -31,12 +34,14 @@ export const SettingsView: FunctionComponent<{
   initialAiModel: string;
   initialDefaultAuthorName: string;
   initialDefaultAuthorEmail: string;
+  initialDefaultCloneDir: string;
 }> = ({
   initialAiEnabled,
   initialAiProvider,
   initialAiModel,
   initialDefaultAuthorName,
   initialDefaultAuthorEmail,
+  initialDefaultCloneDir,
 }) => {
   const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
   const [aiProvider, setAiProvider] = useState(initialAiProvider);
@@ -48,6 +53,8 @@ export const SettingsView: FunctionComponent<{
   );
   const [authorName, setAuthorName] = useState(initialDefaultAuthorName);
   const [authorEmail, setAuthorEmail] = useState(initialDefaultAuthorEmail);
+  const [cloneDir, setCloneDir] = useState(initialDefaultCloneDir);
+  const [cloneDirPickerOpened, setCloneDirPickerOpened] = useState(false);
 
   const handleAiEnabledChange = useCallback((checked: boolean) => {
     setAiEnabled(checked);
@@ -99,6 +106,19 @@ export const SettingsView: FunctionComponent<{
   const handleAuthorEmailBlur = useCallback(() => {
     setSetting('defaultAuthorEmail', authorEmail);
   }, [authorEmail]);
+
+  const handleCloneDirChange = useCallback((value: string) => {
+    setCloneDir(value);
+  }, []);
+
+  const handleCloneDirBlur = useCallback(() => {
+    setSetting('defaultCloneDir', cloneDir);
+  }, [cloneDir]);
+
+  const handleCloneDirSelect = useCallback((path: string) => {
+    setCloneDir(path);
+    setSetting('defaultCloneDir', path);
+  }, []);
 
   return (
     <Stack gap="lg">
@@ -180,6 +200,42 @@ export const SettingsView: FunctionComponent<{
         リポジトリに user.name / user.email
         が未設定の場合、この値がプリフィルされます。
       </Text>
+
+      <Divider />
+
+      <Text fw={600} size="lg">
+        Clone
+      </Text>
+
+      <Group gap="xs" align="end">
+        <TextInput
+          label="Default Clone Directory"
+          placeholder="/path/to/directory"
+          value={cloneDir}
+          onChange={(e) => handleCloneDirChange(e.currentTarget.value)}
+          onBlur={handleCloneDirBlur}
+          styles={{ input: { fontFamily: 'monospace' } }}
+          style={{ flex: 1 }}
+        />
+        <Button
+          variant="light"
+          leftSection={<IconFolder size={16} />}
+          onClick={() => setCloneDirPickerOpened(true)}
+        >
+          Browse
+        </Button>
+      </Group>
+
+      <Text size="xs" c="dimmed">
+        git clone 時のデフォルトの保存先ディレクトリです。
+      </Text>
+
+      <DirectoryPickerModal
+        opened={cloneDirPickerOpened}
+        onClose={() => setCloneDirPickerOpened(false)}
+        onSelect={handleCloneDirSelect}
+        initialPath={cloneDir || '/'}
+      />
     </Stack>
   );
 };

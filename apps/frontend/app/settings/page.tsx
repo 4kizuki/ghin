@@ -20,6 +20,7 @@ const SettingsPage: FunctionComponent = async () => {
           'aiModel',
           'defaultAuthorName',
           'defaultAuthorEmail',
+          'defaultCloneDir',
         ],
       },
     },
@@ -38,6 +39,7 @@ const SettingsPage: FunctionComponent = async () => {
         initialAiModel={settings['aiModel'] ?? DEFAULT_MODEL}
         initialDefaultAuthorName={settings['defaultAuthorName'] ?? ''}
         initialDefaultAuthorEmail={settings['defaultAuthorEmail'] ?? ''}
+        initialDefaultCloneDir={settings['defaultCloneDir'] ?? ''}
       />
     </Container>
   );

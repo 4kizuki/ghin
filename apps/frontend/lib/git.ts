@@ -837,6 +837,23 @@ const setLocalConfig = async (
   await exec(['config', '--local', key, value], cwd);
 };
 
+const cloneRepository = async (url: string, destDir: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      ['clone', url],
+      { cwd: destDir, maxBuffer: 50 * 1024 * 1024 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr || error.message));
+          return;
+        }
+        // git clone outputs progress to stderr even on success
+        resolve(stderr);
+      },
+    );
+  });
+
 export const git = {
   getStatus,
   getDiff,
@@ -872,4 +889,5 @@ export const git = {
   fetchRemotes,
   getConfig,
   setLocalConfig,
+  cloneRepository,
 };
