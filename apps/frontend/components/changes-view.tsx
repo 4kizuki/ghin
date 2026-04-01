@@ -14,6 +14,7 @@ import {
   Switch,
   Stack,
   Tooltip,
+  ActionIcon,
   Badge,
   Loader,
   Modal,
@@ -32,6 +33,7 @@ import {
   IconArrowLeft,
   IconArrowUp,
   IconArrowDown,
+  IconTrash,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useRouter, useParams } from 'next/navigation';
@@ -42,6 +44,9 @@ import {
   unstagePaths,
   stagePatch,
   unstagePatch,
+  discardPaths,
+  discardPatch,
+  discardUntrackedFile,
   commitChanges,
   setSetting,
   getRemoteUrl,
@@ -159,6 +164,10 @@ export const ChangesView: FunctionComponent<{
   >(null);
   const [aiCommitLoading, setAiCommitLoading] = useState(false);
   const [aiBranchLoading, setAiBranchLoading] = useState(false);
+  const [discardConfirm, setDiscardConfirm] = useState<{
+    label: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const totalChanges =
     status.stagedFiles.length +
@@ -256,6 +265,60 @@ export const ChangesView: FunctionComponent<{
     },
     [repoPath, onRefresh, selectedFile, loadDiff],
   );
+
+  const handleDiscardFile = useCallback(
+    (file: FileEntry) => {
+      const isUntracked = file.status === '?';
+      setDiscardConfirm({
+        label: isUntracked
+          ? `Untracked ファイル "${file.path}" を削除しますか？`
+          : `"${file.path}" の変更を破棄しますか？`,
+        onConfirm: async () => {
+          if (isUntracked) {
+            await discardUntrackedFile(repoPath, file.path);
+          } else {
+            await discardPaths(repoPath, [file.path]);
+          }
+          await onRefresh();
+          if (selectedFile === file.path && !selectedFileStaged) {
+            setSelectedFile(null);
+            setDiff([]);
+          }
+        },
+      });
+    },
+    [repoPath, onRefresh, selectedFile, selectedFileStaged],
+  );
+
+  const handleDiscardHunk = useCallback(
+    (patch: string) => {
+      setDiscardConfirm({
+        label: 'この hunk の変更を破棄しますか？',
+        onConfirm: async () => {
+          await discardPatch(repoPath, patch);
+          await onRefresh();
+          if (selectedFile) {
+            loadDiff(selectedFile, false);
+          }
+        },
+      });
+    },
+    [repoPath, onRefresh, selectedFile, loadDiff],
+  );
+
+  const handleDiscardAll = useCallback(() => {
+    const trackedPaths = status.unstagedFiles.map((f) => f.path);
+    if (trackedPaths.length === 0) return;
+    setDiscardConfirm({
+      label: `${trackedPaths.length} 件の unstaged changes をすべて破棄しますか？`,
+      onConfirm: async () => {
+        await discardPaths(repoPath, trackedPaths);
+        await onRefresh();
+        setSelectedFile(null);
+        setDiff([]);
+      },
+    });
+  }, [repoPath, status.unstagedFiles, onRefresh]);
 
   const handleStageAll = useCallback(async () => {
     const paths = unstagedEntries.map((f) => f.path);
@@ -656,6 +719,22 @@ export const ChangesView: FunctionComponent<{
         >
           {file.status}
         </Badge>
+        {!file.staged && (
+          <Tooltip label="Discard changes">
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              color="red"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDiscardFile(file);
+              }}
+              style={{ flex: '0 0 auto' }}
+            >
+              <IconTrash size={12} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
     );
   };
@@ -838,16 +917,36 @@ export const ChangesView: FunctionComponent<{
               overflow: 'hidden',
             }}
           >
-            <Group px="sm" py={6} gap="xs" style={{ flex: '0 0 auto' }}>
-              <Checkbox
-                size="xs"
-                checked={false}
-                disabled={unstagedEntries.length === 0}
-                onChange={handleStageAll}
-              />
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Unstaged Changes ({unstagedEntries.length})
-              </Text>
+            <Group
+              px="sm"
+              py={6}
+              gap="xs"
+              justify="space-between"
+              style={{ flex: '0 0 auto' }}
+            >
+              <Group gap="xs">
+                <Checkbox
+                  size="xs"
+                  checked={false}
+                  disabled={unstagedEntries.length === 0}
+                  onChange={handleStageAll}
+                />
+                <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                  Unstaged Changes ({unstagedEntries.length})
+                </Text>
+              </Group>
+              {status.unstagedFiles.length > 0 && (
+                <Tooltip label="Discard all tracked changes">
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={handleDiscardAll}
+                  >
+                    <IconTrash size={12} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
             </Group>
             <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
               {unstagedEntries.length === 0 ? (
@@ -884,6 +983,7 @@ export const ChangesView: FunctionComponent<{
               diffFontSize={diffFontSize}
               onStageHunk={handleHunkStage}
               onUnstageHunk={handleHunkUnstage}
+              onDiscardHunk={selectedFileStaged ? undefined : handleDiscardHunk}
             />
           ) : selectedFile ? (
             <Group justify="center" pt="xl">
@@ -1154,6 +1254,33 @@ export const ChangesView: FunctionComponent<{
               disabled={!identityName.trim() || !identityEmail.trim()}
             >
               Save & Commit
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={discardConfirm !== null}
+        onClose={() => setDiscardConfirm(null)}
+        title="Discard Changes"
+      >
+        <Stack>
+          <Text size="sm">{discardConfirm?.label}</Text>
+          <Text size="xs" c="red">
+            この操作は元に戻せません。
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setDiscardConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={async () => {
+                await discardConfirm?.onConfirm();
+                setDiscardConfirm(null);
+              }}
+            >
+              Discard
             </Button>
           </Group>
         </Stack>

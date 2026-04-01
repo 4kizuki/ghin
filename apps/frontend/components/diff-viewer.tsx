@@ -4,7 +4,7 @@ import type { FunctionComponent } from 'react';
 import { useCallback, useState } from 'react';
 import { Box, Text, Group, ActionIcon, Tooltip, Code } from '@mantine/core';
 import { Virtuoso } from 'react-virtuoso';
-import { IconPlus, IconMinus } from '@tabler/icons-react';
+import { IconPlus, IconMinus, IconTrash } from '@tabler/icons-react';
 import type { FileDiff, Hunk, HunkLine } from '@/lib/git';
 import { NeverError } from '@repo/never-error';
 
@@ -14,6 +14,7 @@ const buildPatch = (
   selectedLineIndices?: Set<number>,
 ): string => {
   const lines: string[] = [];
+  lines.push(`diff --git a/${filePath} b/${filePath}`);
   lines.push(`--- a/${filePath}`);
   lines.push(`+++ b/${filePath}`);
 
@@ -67,6 +68,69 @@ const buildPatch = (
     );
     lines.push(...patchLines);
   }
+
+  return lines.join('\n') + '\n';
+};
+
+/**
+ * Discard 用パッチを構築する。
+ * buildPatch は index 基準 (staging 用) だが、discard は working tree 基準で
+ * 逆方向のフォワードパッチを生成する必要がある。
+ * --reverse フラグは使わず、git apply でそのまま適用できるパッチを返す。
+ */
+const buildDiscardPatch = (
+  filePath: string,
+  hunk: Hunk,
+  selectedLineIndices?: Set<number>,
+): string => {
+  const lines: string[] = [];
+  lines.push(`diff --git a/${filePath} b/${filePath}`);
+  lines.push(`--- a/${filePath}`);
+  lines.push(`+++ b/${filePath}`);
+
+  const patchLines: string[] = [];
+  let oldCount = 0;
+  let newCount = 0;
+
+  for (let i = 0; i < hunk.lines.length; i++) {
+    const line = hunk.lines[i];
+    const isSelected = !selectedLineIndices || selectedLineIndices.has(i);
+
+    switch (line.type) {
+      case 'context':
+        patchLines.push(` ${line.content}`);
+        oldCount++;
+        newCount++;
+        break;
+      case 'add':
+        if (isSelected) {
+          // working tree にある行を削除
+          patchLines.push(`-${line.content}`);
+          oldCount++;
+        } else {
+          // working tree にある行をそのまま残す (context)
+          patchLines.push(` ${line.content}`);
+          oldCount++;
+          newCount++;
+        }
+        break;
+      case 'remove':
+        if (isSelected) {
+          // index にある行を working tree に復元
+          patchLines.push(`+${line.content}`);
+          newCount++;
+        }
+        // 非選択の remove 行は working tree に存在しないのでスキップ
+        break;
+      default:
+        throw new NeverError(line.type);
+    }
+  }
+
+  lines.push(
+    `@@ -${hunk.newStart},${oldCount} +${hunk.newStart},${newCount} @@`,
+  );
+  lines.push(...patchLines);
 
   return lines.join('\n') + '\n';
 };
@@ -137,6 +201,7 @@ const HunkView: FunctionComponent<{
   diffFontSize: DiffFontSize;
   onStageHunk: (patch: string) => Promise<void>;
   onUnstageHunk: (patch: string) => Promise<void>;
+  onDiscardHunk?: (patch: string) => void;
 }> = ({
   filePath,
   hunk,
@@ -145,6 +210,7 @@ const HunkView: FunctionComponent<{
   diffFontSize,
   onStageHunk,
   onUnstageHunk,
+  onDiscardHunk,
 }) => {
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
   const [shiftStart, setShiftStart] = useState<number | null>(null);
@@ -198,6 +264,22 @@ const HunkView: FunctionComponent<{
     }
   }, [filePath, hunk, staged, onStageHunk, onUnstageHunk]);
 
+  const handleDiscardEntireHunk = useCallback(() => {
+    if (!onDiscardHunk) return;
+    const patch = buildDiscardPatch(filePath, hunk);
+    onDiscardHunk(patch);
+  }, [filePath, hunk, onDiscardHunk]);
+
+  const handleDiscardSelected = useCallback(() => {
+    if (!onDiscardHunk) return;
+    const patch = buildDiscardPatch(
+      filePath,
+      hunk,
+      selectedLines.size > 0 ? selectedLines : undefined,
+    );
+    onDiscardHunk(patch);
+  }, [filePath, hunk, selectedLines, onDiscardHunk]);
+
   return (
     <Box mb="xs">
       <Group
@@ -221,6 +303,18 @@ const HunkView: FunctionComponent<{
             </ActionIcon>
           </Tooltip>
         )}
+        {!readOnly && !staged && onDiscardHunk && (
+          <Tooltip label="Discard hunk">
+            <ActionIcon
+              size="xs"
+              variant="light"
+              color="red"
+              onClick={handleDiscardEntireHunk}
+            >
+              <IconTrash size={12} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         {!readOnly && selectedLines.size > 0 && (
           <Tooltip
             label={
@@ -236,6 +330,18 @@ const HunkView: FunctionComponent<{
               onClick={handleStageSelected}
             >
               {staged ? <IconMinus size={12} /> : <IconPlus size={12} />}
+            </ActionIcon>
+          </Tooltip>
+        )}
+        {!readOnly && !staged && onDiscardHunk && selectedLines.size > 0 && (
+          <Tooltip label={`Discard ${selectedLines.size} lines`}>
+            <ActionIcon
+              size="xs"
+              variant="filled"
+              color="red"
+              onClick={handleDiscardSelected}
+            >
+              <IconTrash size={12} />
             </ActionIcon>
           </Tooltip>
         )}
@@ -324,7 +430,16 @@ const FileDiffSection: FunctionComponent<{
   diffFontSize: DiffFontSize;
   onStageHunk: (patch: string) => Promise<void>;
   onUnstageHunk: (patch: string) => Promise<void>;
-}> = ({ file, staged, readOnly, diffFontSize, onStageHunk, onUnstageHunk }) => (
+  onDiscardHunk?: (patch: string) => void;
+}> = ({
+  file,
+  staged,
+  readOnly,
+  diffFontSize,
+  onStageHunk,
+  onUnstageHunk,
+  onDiscardHunk,
+}) => (
   <Box>
     <Group
       px="sm"
@@ -369,6 +484,7 @@ const FileDiffSection: FunctionComponent<{
             diffFontSize={diffFontSize}
             onStageHunk={onStageHunk}
             onUnstageHunk={onUnstageHunk}
+            onDiscardHunk={onDiscardHunk}
           />
         ))}
       </Box>
@@ -383,6 +499,7 @@ export const DiffViewer: FunctionComponent<{
   diffFontSize: DiffFontSize;
   onStageHunk: (patch: string) => Promise<void>;
   onUnstageHunk: (patch: string) => Promise<void>;
+  onDiscardHunk?: (patch: string) => void;
 }> = ({
   files,
   staged,
@@ -390,6 +507,7 @@ export const DiffViewer: FunctionComponent<{
   diffFontSize,
   onStageHunk,
   onUnstageHunk,
+  onDiscardHunk,
 }) => (
   <Virtuoso
     style={{ height: '100%', overscrollBehavior: 'none' }}
@@ -402,6 +520,7 @@ export const DiffViewer: FunctionComponent<{
         diffFontSize={diffFontSize}
         onStageHunk={onStageHunk}
         onUnstageHunk={onUnstageHunk}
+        onDiscardHunk={onDiscardHunk}
       />
     )}
   />

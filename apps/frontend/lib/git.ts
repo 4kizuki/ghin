@@ -1,5 +1,7 @@
 import 'server-only';
 import { execFile } from 'node:child_process';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -107,6 +109,7 @@ const exec = (
           ]
             .filter(Boolean)
             .join(', ');
+          console.error(`[git] ${args[0]} failed:`, details);
           reject(new Error(`git ${args[0]} failed: ${details}`));
           return;
         }
@@ -854,6 +857,25 @@ const cloneRepository = async (url: string, destDir: string): Promise<string> =>
     );
   });
 
+const discardFiles = async (cwd: string, paths: string[]): Promise<void> => {
+  if (paths.length === 0) return;
+  await exec(['checkout', '--', ...paths], cwd);
+};
+
+const discardHunk = async (
+  cwd: string,
+  patchContent: string,
+): Promise<void> => {
+  await exec(['apply', '--unidiff-zero', '-'], cwd, patchContent);
+};
+
+const deleteUntrackedFile = async (
+  cwd: string,
+  filePath: string,
+): Promise<void> => {
+  await unlink(join(cwd, filePath));
+};
+
 export const git = {
   getStatus,
   getDiff,
@@ -890,4 +912,7 @@ export const git = {
   getConfig,
   setLocalConfig,
   cloneRepository,
+  discardFiles,
+  discardHunk,
+  deleteUntrackedFile,
 };

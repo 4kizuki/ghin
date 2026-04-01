@@ -295,6 +295,38 @@ export const unstagePatch = (
     body: JSON.stringify({ repo, patch }),
   });
 
+// ─── Discard ────────────────────────────────────────────────────────
+
+export const discardPaths = (
+  repo: string,
+  paths: string[],
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/discard', okSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, paths }),
+  });
+
+export const discardPatch = (
+  repo: string,
+  patch: string,
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/discard', okSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, patch }),
+  });
+
+export const discardUntrackedFile = (
+  repo: string,
+  untrackedFile: string,
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/discard', okSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, untrackedFile }),
+  });
+
 // ─── Commit ─────────────────────────────────────────────────────────
 
 export const commitChanges = (
