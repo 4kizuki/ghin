@@ -27,7 +27,7 @@
     "@repo/config": "workspace:*",
     "@types/node": "22.19.15",
     "eslint": "9.39.4",
-    "prisma": "7.0.0",
+    "prisma": "7.5.0",
     "typescript": "5.9.3"
   }
 }
