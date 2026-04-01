@@ -19,9 +19,9 @@ export const GET = async (request: Request): Promise<NextResponse> => {
       { status: 400 },
     );
   }
-  const branches = await git.getBranchesContaining(
-    parsed.data.repo,
-    parsed.data.hash,
-  );
-  return NextResponse.json({ branches });
+  const [branches, localBranches] = await Promise.all([
+    git.getBranchesContaining(parsed.data.repo, parsed.data.hash),
+    git.getLocalBranchNames(parsed.data.repo),
+  ]);
+  return NextResponse.json({ branches, localBranches });
 };

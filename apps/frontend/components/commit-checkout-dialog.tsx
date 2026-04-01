@@ -18,6 +18,7 @@ import {
   getBranchesContaining,
   checkoutRef,
   createBranch,
+  updateBranchToRemote,
   suggestBranchName,
 } from '@/lib/api';
 import { notifications } from '@mantine/notifications';
@@ -63,11 +64,13 @@ export const CommitCheckoutDialog: FunctionComponent<{
   const [branches, setBranches] = useState<string[]>([]);
   const [newBranchName, setNewBranchName] = useState('');
   const [createFromRemote, setCreateFromRemote] = useState<string | null>(null);
+  const [canUpdateLocal, setCanUpdateLocal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [aiBranchLoading, setAiBranchLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const hashRef = useRef<string | null>(null);
+  const localBranchSetRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!commitHash) {
@@ -75,6 +78,7 @@ export const CommitCheckoutDialog: FunctionComponent<{
       setBranches([]);
       setNewBranchName('');
       setCreateFromRemote(null);
+      setCanUpdateLocal(false);
       setError(null);
       setCheckoutLoading(false);
       hashRef.current = null;
@@ -95,6 +99,8 @@ export const CommitCheckoutDialog: FunctionComponent<{
       .then(async (result) => {
         if (hashRef.current !== commitHash) return;
 
+        const localBranchSet = new Set(result.localBranches);
+        localBranchSetRef.current = localBranchSet;
         const deduplicated = deduplicateBranches(result.branches);
 
         if (deduplicated.length === 1) {
@@ -104,8 +110,10 @@ export const CommitCheckoutDialog: FunctionComponent<{
             return;
           }
           if (isRemoteBranch(branch)) {
-            setNewBranchName(remoteToLocalName(branch));
+            const localName = remoteToLocalName(branch);
+            setNewBranchName(localName);
             setCreateFromRemote(branch);
+            setCanUpdateLocal(localBranchSet.has(localName));
             setStatus('create');
           } else {
             setCheckoutLoading(true);
@@ -161,8 +169,10 @@ export const CommitCheckoutDialog: FunctionComponent<{
         return;
       }
       if (isRemoteBranch(branch)) {
-        setNewBranchName(remoteToLocalName(branch));
+        const localName = remoteToLocalName(branch);
+        setNewBranchName(localName);
         setCreateFromRemote(branch);
+        setCanUpdateLocal(localBranchSetRef.current.has(localName));
         setStatus('create');
         return;
       }
@@ -180,6 +190,30 @@ export const CommitCheckoutDialog: FunctionComponent<{
     },
     [repoPath, currentBranch, onClose, onCheckout],
   );
+
+  const handleUpdateBranch = useCallback(async () => {
+    if (!createFromRemote) return;
+    const localName = remoteToLocalName(createFromRemote);
+    setError(null);
+    setCheckoutLoading(true);
+    try {
+      const result = await updateBranchToRemote(
+        repoPath,
+        localName,
+        createFromRemote,
+      );
+      if (!result.success) {
+        setError(result.output);
+        return;
+      }
+      await onCheckout();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [repoPath, createFromRemote, onClose, onCheckout]);
 
   const handleCreateBranch = useCallback(async () => {
     if (!newBranchName.trim() || !commitHash) return;
@@ -232,9 +266,11 @@ export const CommitCheckoutDialog: FunctionComponent<{
         title={
           status === 'select'
             ? 'Select Branch to Checkout'
-            : createFromRemote
-              ? 'Create Local Branch'
-              : 'Create Branch'
+            : createFromRemote && canUpdateLocal
+              ? 'Update Local Branch'
+              : createFromRemote
+                ? 'Create Local Branch'
+                : 'Create Branch'
         }
         size="sm"
       >
@@ -290,7 +326,58 @@ export const CommitCheckoutDialog: FunctionComponent<{
           </Stack>
         )}
 
-        {status === 'create' && (
+        {status === 'create' && canUpdateLocal && createFromRemote && (
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              {`Update local ${remoteToLocalName(createFromRemote)} to match ${createFromRemote}.`}
+            </Text>
+            <Button onClick={handleUpdateBranch} loading={checkoutLoading}>
+              {`Update & Checkout ${remoteToLocalName(createFromRemote)}`}
+            </Button>
+            <TextInput
+              ref={inputRef}
+              placeholder="new-branch-name"
+              leftSection={<IconGitBranch size={16} />}
+              value={newBranchName}
+              onChange={(e) => setNewBranchName(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateBranch();
+              }}
+              rightSection={
+                <AiSuggestButton
+                  onClick={handleSuggestBranchName}
+                  loading={aiBranchLoading}
+                  tooltip="AI: suggest branch name"
+                />
+              }
+              rightSectionWidth={32}
+            />
+            <Button
+              variant="light"
+              onClick={handleCreateBranch}
+              loading={checkoutLoading}
+              disabled={!newBranchName.trim()}
+            >
+              Create & Checkout
+            </Button>
+            {branches.length > 0 && (
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => {
+                  setCreateFromRemote(null);
+                  setCanUpdateLocal(false);
+                  setNewBranchName('');
+                  setStatus('select');
+                }}
+              >
+                Back to branch list
+              </Button>
+            )}
+          </Stack>
+        )}
+
+        {status === 'create' && !canUpdateLocal && (
           <Stack gap="sm">
             <Text size="sm" c="dimmed">
               {createFromRemote

@@ -103,6 +103,10 @@ const mergeResultSchema = z.object({
 const branchesResponseSchema = z.object({
   branches: z.array(z.string()),
 });
+const branchesContainingResponseSchema = z.object({
+  branches: z.array(z.string()),
+  localBranches: z.array(z.string()),
+});
 const remotesResponseSchema = z.object({
   remotes: z.array(z.string()),
 });
@@ -213,10 +217,10 @@ export const getBranches = (repo: string): Promise<BranchInfo[]> =>
 export const getBranchesContaining = (
   repo: string,
   hash: string,
-): Promise<{ branches: string[] }> =>
+): Promise<{ branches: string[]; localBranches: string[] }> =>
   fetchJson(
     `/api/git/branches-containing?repo=${encodeURIComponent(repo)}&hash=${encodeURIComponent(hash)}`,
-    branchesResponseSchema,
+    branchesContainingResponseSchema,
   );
 
 // ─── Create Branch ─────────────────────────────────────────────────
@@ -348,6 +352,24 @@ export const checkoutRef = (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, ref }),
+  });
+
+// ─── Update Branch ─────────────────────────────────────────────────
+
+const updateBranchResultSchema = z.object({
+  success: z.boolean(),
+  output: z.string(),
+});
+
+export const updateBranchToRemote = (
+  repo: string,
+  localBranch: string,
+  remoteBranch: string,
+): Promise<{ success: boolean; output: string }> =>
+  fetchJson('/api/git/update-branch', updateBranchResultSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, localBranch, remoteBranch }),
   });
 
 // ─── Branch Cleanup ─────────────────────────────────────────────────

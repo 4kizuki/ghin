@@ -491,6 +491,11 @@ const getBranchesContaining = async (
     .filter((b) => !b.startsWith('origin/HEAD'));
 };
 
+const getLocalBranchNames = async (cwd: string): Promise<string[]> => {
+  const output = await exec(['branch', '--format=%(refname:short)'], cwd);
+  return output.trim().split('\n').filter(Boolean);
+};
+
 const stageFiles = async (cwd: string, paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   await exec(['add', '--', ...paths], cwd);
@@ -625,6 +630,40 @@ const pullAndMergeMain = async (
 
 const checkout = async (cwd: string, branchOrRef: string): Promise<string> => {
   return exec(['checkout', branchOrRef], cwd);
+};
+
+const updateBranchToRemote = async (
+  cwd: string,
+  localBranch: string,
+  remoteBranch: string,
+): Promise<{ success: boolean; output: string }> => {
+  try {
+    await exec(['merge-base', '--is-ancestor', localBranch, remoteBranch], cwd);
+  } catch {
+    return {
+      success: false,
+      output: `Cannot fast-forward: ${localBranch} is not an ancestor of ${remoteBranch}`,
+    };
+  }
+
+  const currentBranch = (
+    await exec(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+  ).trim();
+
+  try {
+    if (currentBranch === localBranch) {
+      const output = await exec(['merge', '--ff-only', remoteBranch], cwd);
+      return { success: true, output };
+    }
+    await exec(['branch', '-f', localBranch, remoteBranch], cwd);
+    const output = await exec(['checkout', localBranch], cwd);
+    return { success: true, output };
+  } catch (e) {
+    return {
+      success: false,
+      output: e instanceof Error ? e.message : 'Update failed',
+    };
+  }
 };
 
 const createBranch = async (
@@ -805,6 +844,7 @@ export const git = {
   getLog,
   getBranches,
   getBranchesContaining,
+  getLocalBranchNames,
   stageFiles,
   unstageFiles,
   stageHunk,
@@ -816,6 +856,7 @@ export const git = {
   mergeMain,
   pullAndMergeMain,
   checkout,
+  updateBranchToRemote,
   createBranch,
   getMergedBranches,
   deleteBranches,
