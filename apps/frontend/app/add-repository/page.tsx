@@ -1,7 +1,10 @@
 import type { FunctionComponent } from 'react';
+import type { Metadata } from 'next';
 import { homedir } from 'node:os';
 import { Container, Title } from '@mantine/core';
 import { DirectoryBrowser } from '@/components/directory-browser';
+
+export const metadata: Metadata = { title: 'Add Repository' };
 
 const AddRepositoryPage: FunctionComponent = () => {
   const initialPath = homedir();

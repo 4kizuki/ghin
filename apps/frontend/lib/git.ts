@@ -473,7 +473,7 @@ const getBranches = async (cwd: string): Promise<BranchInfo[]> => {
         aheadBehind: upstream ? { ahead, behind } : undefined,
       };
     })
-    .filter((b) => !b.name.startsWith('origin/HEAD'));
+    .filter((b) => b.name !== 'origin' && !b.name.startsWith('origin/HEAD'));
 };
 
 const getBranchesContaining = async (

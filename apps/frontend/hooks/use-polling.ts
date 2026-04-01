@@ -4,6 +4,7 @@ export const usePolling = (
   callback: () => void,
   intervalMs: number,
   enabled: boolean,
+  inactiveIntervalMs?: number,
 ): void => {
   const callbackRef = useRef(callback);
   useEffect(() => {
@@ -13,18 +14,21 @@ export const usePolling = (
   useEffect(() => {
     if (!enabled) return;
 
-    const start = (): NodeJS.Timeout => {
+    const start = (ms: number): NodeJS.Timeout => {
       callbackRef.current();
-      return setInterval(() => callbackRef.current(), intervalMs);
+      return setInterval(() => callbackRef.current(), ms);
     };
 
-    let id = start();
+    let id = start(intervalMs);
 
     const onVisibilityChange = (): void => {
+      clearInterval(id);
       if (document.hidden) {
-        clearInterval(id);
+        if (inactiveIntervalMs !== undefined) {
+          id = start(inactiveIntervalMs);
+        }
       } else {
-        id = start();
+        id = start(intervalMs);
       }
     };
 
@@ -34,5 +38,5 @@ export const usePolling = (
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [enabled, intervalMs]);
+  }, [enabled, intervalMs, inactiveIntervalMs]);
 };

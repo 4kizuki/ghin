@@ -13,6 +13,7 @@ import {
   Badge,
   Loader,
   Tabs,
+  Tooltip,
 } from '@mantine/core';
 import { IconSearch, IconGitBranch } from '@tabler/icons-react';
 import type { BranchInfo } from '@/lib/git';
@@ -175,20 +176,34 @@ export const BranchSwitcher: FunctionComponent<{
                   }}
                 >
                   <Group gap="xs" wrap="nowrap">
-                    <IconGitBranch size={14} />
-                    <Text size="sm">{branch.name}</Text>
+                    <IconGitBranch size={14} style={{ flexShrink: 0 }} />
+                    <Tooltip label={branch.name} openDelay={500}>
+                      <Text size="sm" truncate style={{ minWidth: 0 }}>
+                        {branch.name}
+                      </Text>
+                    </Tooltip>
                     {branch.current && (
-                      <Badge size="xs" color="blue">
+                      <Badge size="xs" color="blue" style={{ flexShrink: 0 }}>
                         current
                       </Badge>
                     )}
                     {branch.aheadBehind && branch.aheadBehind.ahead > 0 && (
-                      <Badge size="xs" color="orange" variant="light">
+                      <Badge
+                        size="xs"
+                        color="orange"
+                        variant="light"
+                        style={{ flexShrink: 0 }}
+                      >
                         ↑{branch.aheadBehind.ahead}
                       </Badge>
                     )}
                     {branch.aheadBehind && branch.aheadBehind.behind > 0 && (
-                      <Badge size="xs" color="blue" variant="light">
+                      <Badge
+                        size="xs"
+                        color="blue"
+                        variant="light"
+                        style={{ flexShrink: 0 }}
+                      >
                         ↓{branch.aheadBehind.behind}
                       </Badge>
                     )}
@@ -222,11 +237,18 @@ export const BranchSwitcher: FunctionComponent<{
                       setNewBranchName(remoteToLocalName(branch.name));
                     }}
                   >
-                    <Group gap="xs">
-                      <IconGitBranch size={14} />
-                      <Text size="sm" c="dimmed">
-                        {branch.name}
-                      </Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <IconGitBranch size={14} style={{ flexShrink: 0 }} />
+                      <Tooltip label={branch.name} openDelay={500}>
+                        <Text
+                          size="sm"
+                          c="dimmed"
+                          truncate
+                          style={{ minWidth: 0 }}
+                        >
+                          {branch.name}
+                        </Text>
+                      </Tooltip>
                     </Group>
                   </Box>
                   {creatingFrom === branch.name && (
