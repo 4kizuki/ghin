@@ -130,6 +130,8 @@ export const ChangesView: FunctionComponent<{
   const params = useParams<{ repoId: string }>();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedFileStaged, setSelectedFileStaged] = useState(false);
+  const selectedFileRef = useRef<string | null>(null);
+  const selectedFileStagedRef = useRef(false);
   const [diff, setDiff] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [commitMsg, setCommitMsg] = useState('');
@@ -218,6 +220,25 @@ export const ChangesView: FunctionComponent<{
     },
     [repoPath],
   );
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile;
+  }, [selectedFile]);
+  useEffect(() => {
+    selectedFileStagedRef.current = selectedFileStaged;
+  }, [selectedFileStaged]);
+
+  const isInitialStatus = useRef(true);
+  useEffect(() => {
+    if (isInitialStatus.current) {
+      isInitialStatus.current = false;
+      return;
+    }
+    if (selectedFileRef.current) {
+      loadDiff(selectedFileRef.current, selectedFileStagedRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh diff when status updates from polling
+  }, [status]);
 
   const handleFileClick = useCallback(
     (file: FileEntry, globalIndex: number) => {
