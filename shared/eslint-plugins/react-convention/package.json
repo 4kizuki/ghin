@@ -26,8 +26,8 @@
   "devDependencies": {
     "@typescript-eslint/parser": "8.57.2",
     "@typescript-eslint/rule-tester": "8.57.2",
-    "eslint": "9.39.4",
+    "eslint": "10.0.2",
     "typescript": "5.9.3",
-    "vitest": "3.2.1"
+    "vitest": "4.0.18"
   }
 }
