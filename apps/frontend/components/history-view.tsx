@@ -52,6 +52,7 @@ import {
   usePathname,
   useParams,
 } from 'next/navigation';
+import { DateTime } from 'luxon';
 import type { CommitInfo, FileDiff } from '@/lib/git';
 import {
   getLog,
@@ -76,6 +77,37 @@ import { BranchSwitcher } from '@/components/branch-switcher';
 import { CommitCheckoutDialog } from '@/components/commit-checkout-dialog';
 
 const noop = async (): Promise<void> => {};
+
+const RELATIVE_TIME_UNITS = [
+  { unit: 'year', ms: 365.25 * 24 * 60 * 60 * 1000 },
+  { unit: 'month', ms: 30.44 * 24 * 60 * 60 * 1000 },
+  { unit: 'week', ms: 7 * 24 * 60 * 60 * 1000 },
+  { unit: 'day', ms: 24 * 60 * 60 * 1000 },
+  { unit: 'hour', ms: 60 * 60 * 1000 },
+  { unit: 'minute', ms: 60 * 1000 },
+] satisfies ReadonlyArray<{ unit: Intl.RelativeTimeFormatUnit; ms: number }>;
+
+const rtf = new Intl.RelativeTimeFormat('ja', { numeric: 'auto' });
+
+function formatRelativeTime(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  for (const { unit, ms } of RELATIVE_TIME_UNITS) {
+    if (Math.abs(diff) >= ms) {
+      return rtf.format(Math.round(diff / ms), unit);
+    }
+  }
+  return rtf.format(Math.round(diff / 1000), 'second');
+}
+
+function formatAbsoluteTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 const extractBranchRefs = (refs: string[]): string[] =>
   refs
@@ -878,20 +910,34 @@ export const HistoryView: FunctionComponent<{
                 </HoverCard.Dropdown>
               </HoverCard>
 
-              <Text
-                size="xs"
-                c="dimmed"
-                ml="xs"
-                style={{ flexShrink: 0, width: 130 }}
+              <HoverCard
+                position="top"
+                shadow="sm"
+                withinPortal
+                openDelay={750}
               >
-                {new Date(commit.date).toLocaleString('ja-JP', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Text>
+                <HoverCard.Target>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    ml="xs"
+                    style={{ flexShrink: 0, width: 80 }}
+                  >
+                    {DateTime.fromISO(commit.date).toRelative()}
+                  </Text>
+                </HoverCard.Target>
+                <HoverCard.Dropdown p="xs">
+                  <Text size="xs">
+                    {new Date(commit.date).toLocaleString('ja-JP', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </HoverCard.Dropdown>
+              </HoverCard>
             </Box>
           );
         }}
@@ -1010,9 +1056,23 @@ export const HistoryView: FunctionComponent<{
                   <Text size="xs" c="dimmed">
                     {selectedCommit.author}
                   </Text>
-                  <Text size="xs" c="dimmed">
-                    {new Date(selectedCommit.date).toLocaleString('ja-JP')}
-                  </Text>
+                  <Tooltip
+                    label={new Date(selectedCommit.date).toLocaleString(
+                      'ja-JP',
+                      {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      },
+                    )}
+                    openDelay={750}
+                  >
+                    <Text size="xs" c="dimmed">
+                      {DateTime.fromISO(selectedCommit.date).toRelative()}
+                    </Text>
+                  </Tooltip>
                 </Group>
               </Stack>
               <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
