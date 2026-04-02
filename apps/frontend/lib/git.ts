@@ -92,9 +92,14 @@ export type {
 const exec = (
   args: string[],
   cwd: string,
-  stdinData?: string,
+  options?: string | { stdinData?: string; expectedError?: RegExp },
 ): Promise<string> =>
   new Promise((resolve, reject) => {
+    const stdinData =
+      typeof options === 'string' ? options : options?.stdinData;
+    const expectedError =
+      typeof options === 'object' ? options?.expectedError : undefined;
+
     const child = execFile(
       'git',
       args,
@@ -109,7 +114,9 @@ const exec = (
           ]
             .filter(Boolean)
             .join(', ');
-          console.error(`[git] ${args[0]} failed:`, details);
+          if (!expectedError || !expectedError.test(stderr)) {
+            console.error(`[git] ${args[0]} failed:`, details);
+          }
           reject(new Error(`git ${args[0]} failed: ${details}`));
           return;
         }
@@ -349,6 +356,7 @@ const getStatus = async (cwd: string): Promise<RepoStatus> => {
       const revList = await exec(
         ['rev-list', '--left-right', '--count', `origin/main...HEAD`],
         cwd,
+        { expectedError: /unknown revision.*origin\/main/ },
       );
       const parts = revList.trim().split(/\s+/);
       if (parts.length === 2) {
