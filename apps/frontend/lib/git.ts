@@ -356,7 +356,7 @@ const getStatus = async (cwd: string): Promise<RepoStatus> => {
       const revList = await exec(
         ['rev-list', '--left-right', '--count', `origin/main...HEAD`],
         cwd,
-        { expectedError: /unknown revision.*origin\/main/ },
+        { expectedError: /origin\/main.*unknown revision/ },
       );
       const parts = revList.trim().split(/\s+/);
       if (parts.length === 2) {
@@ -689,12 +689,16 @@ const createBranch = async (
 
 const getMergedBranches = async (cwd: string): Promise<string[]> => {
   await exec(['fetch', '--prune'], cwd);
-  const output = await exec(['branch', '--merged', 'origin/main'], cwd);
-  return output
-    .trim()
-    .split('\n')
-    .map((b) => b.trim())
-    .filter((b) => b && !b.startsWith('*') && b !== 'main');
+  try {
+    const output = await exec(['branch', '--merged', 'origin/main'], cwd);
+    return output
+      .trim()
+      .split('\n')
+      .map((b) => b.trim())
+      .filter((b) => b && !b.startsWith('*') && b !== 'main');
+  } catch {
+    return [];
+  }
 };
 
 const deleteBranches = async (
