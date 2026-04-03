@@ -21,6 +21,7 @@ const SettingsPage: FunctionComponent = async () => {
           'defaultAuthorName',
           'defaultAuthorEmail',
           'defaultCloneDir',
+          'dateDisplayFormat',
         ],
       },
     },
@@ -40,6 +41,7 @@ const SettingsPage: FunctionComponent = async () => {
         initialDefaultAuthorName={settings['defaultAuthorName'] ?? ''}
         initialDefaultAuthorEmail={settings['defaultAuthorEmail'] ?? ''}
         initialDefaultCloneDir={settings['defaultCloneDir'] ?? ''}
+        initialDateDisplayFormat={settings['dateDisplayFormat'] ?? 'relative'}
       />
     </Container>
   );

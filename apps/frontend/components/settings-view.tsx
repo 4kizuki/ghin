@@ -28,6 +28,11 @@ const PROVIDER_OPTIONS = [{ value: 'codex', label: 'Codex' }];
 const isPresetModel = (model: string): boolean =>
   MODEL_PRESETS.some((p) => p.value === model && p.value !== '__custom__');
 
+const DATE_DISPLAY_OPTIONS = [
+  { value: 'relative', label: 'Relative (3日前)' },
+  { value: 'absolute', label: 'Absolute (2026/04/01 15:30)' },
+];
+
 export const SettingsView: FunctionComponent<{
   initialAiEnabled: boolean;
   initialAiProvider: string;
@@ -35,6 +40,7 @@ export const SettingsView: FunctionComponent<{
   initialDefaultAuthorName: string;
   initialDefaultAuthorEmail: string;
   initialDefaultCloneDir: string;
+  initialDateDisplayFormat: string;
 }> = ({
   initialAiEnabled,
   initialAiProvider,
@@ -42,6 +48,7 @@ export const SettingsView: FunctionComponent<{
   initialDefaultAuthorName,
   initialDefaultAuthorEmail,
   initialDefaultCloneDir,
+  initialDateDisplayFormat,
 }) => {
   const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
   const [aiProvider, setAiProvider] = useState(initialAiProvider);
@@ -55,6 +62,9 @@ export const SettingsView: FunctionComponent<{
   const [authorEmail, setAuthorEmail] = useState(initialDefaultAuthorEmail);
   const [cloneDir, setCloneDir] = useState(initialDefaultCloneDir);
   const [cloneDirPickerOpened, setCloneDirPickerOpened] = useState(false);
+  const [dateDisplayFormat, setDateDisplayFormat] = useState(
+    initialDateDisplayFormat,
+  );
 
   const handleAiEnabledChange = useCallback((checked: boolean) => {
     setAiEnabled(checked);
@@ -118,6 +128,12 @@ export const SettingsView: FunctionComponent<{
   const handleCloneDirSelect = useCallback((path: string) => {
     setCloneDir(path);
     setSetting('defaultCloneDir', path);
+  }, []);
+
+  const handleDateDisplayFormatChange = useCallback((value: string | null) => {
+    if (!value) return;
+    setDateDisplayFormat(value);
+    setSetting('dateDisplayFormat', value);
   }, []);
 
   return (
@@ -235,6 +251,20 @@ export const SettingsView: FunctionComponent<{
         onClose={() => setCloneDirPickerOpened(false)}
         onSelect={handleCloneDirSelect}
         initialPath={cloneDir || '/'}
+      />
+
+      <Divider />
+
+      <Text fw={600} size="lg">
+        Display
+      </Text>
+
+      <Select
+        label="Date Display Format"
+        description="コミット履歴の日時表示形式を選択します。"
+        data={DATE_DISPLAY_OPTIONS}
+        value={dateDisplayFormat}
+        onChange={handleDateDisplayFormatChange}
       />
     </Stack>
   );

@@ -76,6 +76,8 @@ import { SearchDialog } from '@/components/search-dialog';
 import { BranchSwitcher } from '@/components/branch-switcher';
 import { CommitCheckoutDialog } from '@/components/commit-checkout-dialog';
 
+export type DateDisplayFormat = 'relative' | 'absolute';
+
 const noop = async (): Promise<void> => {};
 
 const RELATIVE_TIME_UNITS = [
@@ -119,11 +121,13 @@ export const HistoryView: FunctionComponent<{
   initialCommits?: CommitInfo[];
   initialAutoFetch?: boolean;
   initialFetchRemotes?: string[];
+  initialDateDisplayFormat?: DateDisplayFormat;
 }> = ({
   repoPath,
   initialCommits,
   initialAutoFetch = false,
   initialFetchRemotes = [],
+  initialDateDisplayFormat = 'relative',
 }) => {
   const PAGE_SIZE = 200;
   const [commits, setCommits] = useState<CommitInfo[]>(initialCommits ?? []);
@@ -921,20 +925,21 @@ export const HistoryView: FunctionComponent<{
                     size="xs"
                     c="dimmed"
                     ml="xs"
-                    style={{ flexShrink: 0, width: 80 }}
+                    style={{
+                      flexShrink: 0,
+                      width: initialDateDisplayFormat === 'absolute' ? 130 : 80,
+                    }}
                   >
-                    {DateTime.fromISO(commit.date).toRelative()}
+                    {initialDateDisplayFormat === 'absolute'
+                      ? formatAbsoluteTime(commit.date)
+                      : DateTime.fromISO(commit.date).toRelative()}
                   </Text>
                 </HoverCard.Target>
                 <HoverCard.Dropdown p="xs">
                   <Text size="xs">
-                    {new Date(commit.date).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {initialDateDisplayFormat === 'absolute'
+                      ? DateTime.fromISO(commit.date).toRelative()
+                      : formatAbsoluteTime(commit.date)}
                   </Text>
                 </HoverCard.Dropdown>
               </HoverCard>
@@ -1057,20 +1062,17 @@ export const HistoryView: FunctionComponent<{
                     {selectedCommit.author}
                   </Text>
                   <Tooltip
-                    label={new Date(selectedCommit.date).toLocaleString(
-                      'ja-JP',
-                      {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      },
-                    )}
+                    label={
+                      initialDateDisplayFormat === 'absolute'
+                        ? DateTime.fromISO(selectedCommit.date).toRelative()
+                        : formatAbsoluteTime(selectedCommit.date)
+                    }
                     openDelay={750}
                   >
                     <Text size="xs" c="dimmed">
-                      {DateTime.fromISO(selectedCommit.date).toRelative()}
+                      {initialDateDisplayFormat === 'absolute'
+                        ? formatAbsoluteTime(selectedCommit.date)
+                        : DateTime.fromISO(selectedCommit.date).toRelative()}
                     </Text>
                   </Tooltip>
                 </Group>
