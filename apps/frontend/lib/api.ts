@@ -533,6 +533,24 @@ export const setSetting = (
     body: JSON.stringify({ key, value }),
   });
 
+// ─── Distribute Dates ───────────────────────────────────────────────
+
+const distributeResultSchema = z.object({
+  ok: z.boolean(),
+  output: z.string(),
+  backupTag: z.string(),
+});
+
+export const distributeCommitDates = (
+  repo: string,
+  commits: Array<{ hash: string; newDate: string }>,
+): Promise<{ ok: boolean; output: string; backupTag: string }> =>
+  fetchJson('/api/git/distribute-dates', distributeResultSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, commits }),
+  });
+
 // ─── Git Config ─────────────────────────────────────────────────────
 
 export const setGitConfig = (

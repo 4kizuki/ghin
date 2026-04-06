@@ -45,7 +45,10 @@ import {
   IconUpload,
   IconAlertTriangle,
   IconArrowBackUp,
+  IconClock,
+  IconX,
 } from '@tabler/icons-react';
+import { DateTimePicker } from '@mantine/dates';
 import {
   useSearchParams,
   useRouter,
@@ -64,6 +67,7 @@ import {
   updateAutoFetch,
   mergeRef,
   resetToCommit,
+  distributeCommitDates,
 } from '@/lib/api';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
@@ -149,6 +153,13 @@ export const HistoryView: FunctionComponent<{
   const copyFadeRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Multi-select mode
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedHashes, setSelectedHashes] = useState<Set<string>>(new Set());
+  const [distributeStart, setDistributeStart] = useState<string | null>(null);
+  const [distributeEnd, setDistributeEnd] = useState<string | null>(null);
+  const [distributeLoading, setDistributeLoading] = useState(false);
 
   const [searchOpened, { open: openSearch, close: closeSearch }] =
     useDisclosure(false);
@@ -509,6 +520,94 @@ export const HistoryView: FunctionComponent<{
     refreshCommits,
   ]);
 
+  const handleMultiSelectToggle = useCallback((checked: boolean) => {
+    setMultiSelectMode(checked);
+    if (!checked) {
+      setSelectedHashes(new Set());
+      setDistributeStart(null);
+      setDistributeEnd(null);
+    }
+  }, []);
+
+  const handleDistribute = useCallback(() => {
+    const selectedCommits = commits.filter((c) => selectedHashes.has(c.hash));
+    if (selectedCommits.length < 2 || !distributeStart || !distributeEnd)
+      return;
+
+    const startMs = new Date(distributeStart).getTime();
+    const endMs = new Date(distributeEnd).getTime();
+    if (startMs >= endMs) return;
+
+    // Sort selected commits by their current date (oldest first)
+    const sorted = [...selectedCommits].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    // Generate random timestamps within range, sorted ascending
+    const count = sorted.length;
+    const randomTimes = Array.from(
+      { length: count },
+      () => startMs + Math.random() * (endMs - startMs),
+    ).sort((a, b) => a - b);
+
+    const redistributed = sorted.map((c, i) => ({
+      hash: c.hash,
+      newDate: new Date(randomTimes[i]).toISOString(),
+    }));
+
+    modals.openConfirmModal({
+      title: 'Distribute commit dates',
+      children: (
+        <Stack gap="xs">
+          <Text size="sm">
+            {count} 件のコミットの日時を以下の範囲内にランダム分布します:
+          </Text>
+          <Text size="sm" fw={600}>
+            {new Date(distributeStart).toLocaleString('ja-JP')} ~{' '}
+            {new Date(distributeEnd).toLocaleString('ja-JP')}
+          </Text>
+          <Text size="xs" c="red">
+            Warning: git の履歴を書き換えます。push
+            済みのコミットには使用しないでください。
+          </Text>
+        </Stack>
+      ),
+      labels: { confirm: 'Distribute', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        setDistributeLoading(true);
+        try {
+          await distributeCommitDates(repoPath, redistributed);
+          notifications.show({
+            message: 'Dates distributed successfully',
+            color: 'green',
+          });
+          setSelectedHashes(new Set());
+          setMultiSelectMode(false);
+          setDistributeStart(null);
+          setDistributeEnd(null);
+          await refreshStatus();
+          await refreshCommits();
+        } catch (e) {
+          notifications.show({
+            message: e instanceof Error ? e.message : 'Distribution failed',
+            color: 'red',
+          });
+        } finally {
+          setDistributeLoading(false);
+        }
+      },
+    });
+  }, [
+    commits,
+    selectedHashes,
+    distributeStart,
+    distributeEnd,
+    repoPath,
+    refreshStatus,
+    refreshCommits,
+  ]);
+
   const shortcuts = useMemo(
     () => [
       { key: 'k', meta: true, handler: openSearch },
@@ -623,83 +722,148 @@ export const HistoryView: FunctionComponent<{
         </Group>
 
         <Group gap="xs">
-          <Button.Group>
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconDownload size={14} />}
-              onClick={handleFetch}
-              loading={fetchLoading}
-            >
-              Fetch
-            </Button>
-            <Popover position="bottom-end" onOpen={loadRemotes}>
-              <Popover.Target>
-                <Button size="xs" variant="light" px={4}>
-                  <IconChevronDown size={14} />
+          {multiSelectMode && selectedHashes.size > 0 ? (
+            <>
+              <Badge size="lg" variant="light" color="violet">
+                {selectedHashes.size} selected
+              </Badge>
+              <DateTimePicker
+                size="xs"
+                placeholder="Start"
+                value={distributeStart}
+                onChange={setDistributeStart}
+                style={{ width: 180 }}
+                valueFormat="YYYY/MM/DD HH:mm"
+              />
+              <Text size="xs" c="dimmed">
+                ~
+              </Text>
+              <DateTimePicker
+                size="xs"
+                placeholder="End"
+                value={distributeEnd}
+                onChange={setDistributeEnd}
+                style={{ width: 180 }}
+                valueFormat="YYYY/MM/DD HH:mm"
+              />
+              <Button
+                size="xs"
+                variant="filled"
+                color="violet"
+                leftSection={<IconClock size={14} />}
+                onClick={handleDistribute}
+                loading={distributeLoading}
+                disabled={
+                  selectedHashes.size < 2 ||
+                  !distributeStart ||
+                  !distributeEnd ||
+                  new Date(distributeStart).getTime() >=
+                    new Date(distributeEnd).getTime()
+                }
+              >
+                Distribute
+              </Button>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                onClick={() => {
+                  setSelectedHashes(new Set());
+                  setDistributeStart(null);
+                  setDistributeEnd(null);
+                }}
+              >
+                <IconX size={14} />
+              </ActionIcon>
+            </>
+          ) : (
+            <>
+              <Switch
+                size="xs"
+                label="Select"
+                checked={multiSelectMode}
+                onChange={(e) =>
+                  handleMultiSelectToggle(e.currentTarget.checked)
+                }
+              />
+              <Button.Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconDownload size={14} />}
+                  onClick={handleFetch}
+                  loading={fetchLoading}
+                >
+                  Fetch
                 </Button>
-              </Popover.Target>
-              <Popover.Dropdown>
-                <Stack gap="xs">
-                  <Switch
-                    size="xs"
-                    label="Auto Fetch (60s)"
-                    checked={autoFetch}
-                    onChange={(e) =>
-                      handleAutoFetchToggle(e.currentTarget.checked)
-                    }
-                  />
-                  <Divider />
-                  <Text size="xs" fw={600} c="dimmed">
-                    Remotes
-                  </Text>
-                  {availableRemotes.map((remote) => (
-                    <Checkbox
-                      key={remote}
-                      size="xs"
-                      label={remote}
-                      checked={selectedRemotes.includes(remote)}
-                      onChange={(e) =>
-                        handleRemoteToggle(remote, e.currentTarget.checked)
-                      }
-                    />
-                  ))}
-                  {availableRemotes.length === 0 && (
-                    <Text size="xs" c="dimmed">
-                      Loading...
-                    </Text>
-                  )}
-                </Stack>
-              </Popover.Dropdown>
-            </Popover>
-          </Button.Group>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconSearch size={14} />}
-            onClick={openSearch}
-          >
-            Search
-          </Button>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconGitMerge size={14} />}
-            onClick={handlePullMerge}
-            loading={actionLoading}
-          >
-            Pull & Merge
-          </Button>
-          <Button
-            size="xs"
-            variant="light"
-            color={status && status.ahead > 0 ? 'orange' : undefined}
-            leftSection={<IconUpload size={14} />}
-            onClick={handlePush}
-            loading={actionLoading}
-          >
-            Push
-          </Button>
+                <Popover position="bottom-end" onOpen={loadRemotes}>
+                  <Popover.Target>
+                    <Button size="xs" variant="light" px={4}>
+                      <IconChevronDown size={14} />
+                    </Button>
+                  </Popover.Target>
+                  <Popover.Dropdown>
+                    <Stack gap="xs">
+                      <Switch
+                        size="xs"
+                        label="Auto Fetch (60s)"
+                        checked={autoFetch}
+                        onChange={(e) =>
+                          handleAutoFetchToggle(e.currentTarget.checked)
+                        }
+                      />
+                      <Divider />
+                      <Text size="xs" fw={600} c="dimmed">
+                        Remotes
+                      </Text>
+                      {availableRemotes.map((remote) => (
+                        <Checkbox
+                          key={remote}
+                          size="xs"
+                          label={remote}
+                          checked={selectedRemotes.includes(remote)}
+                          onChange={(e) =>
+                            handleRemoteToggle(remote, e.currentTarget.checked)
+                          }
+                        />
+                      ))}
+                      {availableRemotes.length === 0 && (
+                        <Text size="xs" c="dimmed">
+                          Loading...
+                        </Text>
+                      )}
+                    </Stack>
+                  </Popover.Dropdown>
+                </Popover>
+              </Button.Group>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconSearch size={14} />}
+                onClick={openSearch}
+              >
+                Search
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconGitMerge size={14} />}
+                onClick={handlePullMerge}
+                loading={actionLoading}
+              >
+                Pull & Merge
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                color={status && status.ahead > 0 ? 'orange' : undefined}
+                leftSection={<IconUpload size={14} />}
+                onClick={handlePush}
+                loading={actionLoading}
+              >
+                Push
+              </Button>
+            </>
+          )}
         </Group>
       </Group>
 
@@ -743,6 +907,25 @@ export const HistoryView: FunctionComponent<{
                 }),
               })}
             >
+              {multiSelectMode && (
+                <Checkbox
+                  size="xs"
+                  ml={4}
+                  style={{ flexShrink: 0 }}
+                  checked={selectedHashes.has(commit.hash)}
+                  onChange={(e) => {
+                    const checked = e.currentTarget.checked;
+                    setSelectedHashes((prev) => {
+                      const next = new Set(prev);
+                      if (checked) next.add(commit.hash);
+                      else next.delete(commit.hash);
+                      return next;
+                    });
+                  }}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  onDoubleClick={(e: React.MouseEvent) => e.stopPropagation()}
+                />
+              )}
               <Tooltip label="View diff">
                 <ActionIcon
                   size="xs"
