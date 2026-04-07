@@ -611,12 +611,10 @@ export const HistoryView: FunctionComponent<{
   const shortcuts = useMemo(
     () => [
       { key: 'k', meta: true, handler: openSearch },
-      { key: 'p', meta: true, handler: openSearch },
       { key: 'm', meta: true, shift: true, handler: handlePullMerge },
-      { key: 'p', meta: true, shift: true, handler: handlePush },
       { key: 'b', meta: true, handler: openBranch },
     ],
-    [openSearch, handlePullMerge, handlePush, openBranch],
+    [openSearch, handlePullMerge, openBranch],
   );
 
   useKeyboardShortcuts(shortcuts);

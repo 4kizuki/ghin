@@ -146,15 +146,8 @@ export const AppShellView: FunctionComponent<{
   );
 
   const shortcuts = useMemo(
-    () => [
-      { key: '/', handler: openHelp },
-      ...visibleRepos.slice(0, 9).map((repo, i) => ({
-        key: String(i + 1),
-        meta: true,
-        handler: () => navigateToRepo(repo.id),
-      })),
-    ],
-    [visibleRepos, openHelp, navigateToRepo],
+    () => [{ key: '/', handler: openHelp }],
+    [openHelp],
   );
 
   useKeyboardShortcuts(shortcuts);

@@ -6,12 +6,10 @@ import { Modal, Table, Text, Kbd, Group } from '@mantine/core';
 const shortcuts = [
   { keys: ['⌘', 'K'], description: 'Open search' },
   { keys: ['⌘', '↵'], description: 'Commit' },
-  { keys: ['⌘', '⇧', 'P'], description: 'Push' },
   { keys: ['⌘', '⇧', 'M'], description: 'Pull & Merge main' },
   { keys: ['j'], description: 'Move down in file list' },
   { keys: ['k'], description: 'Move up in file list' },
   { keys: ['Space'], description: 'Toggle stage/unstage' },
-  { keys: ['⌘', '1-9'], description: 'Switch repo tab' },
   { keys: ['⌘', 'B'], description: 'Switch branch' },
   { keys: ['/'], description: 'Show this help' },
 ] as const;
