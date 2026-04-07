@@ -22,7 +22,7 @@
     "@repo/env-picker": "workspace:*",
     "@repo/never-error": "workspace:*",
     "@repo/tamed-mantine": "workspace:*",
-    "@tabler/icons-react": "3.40.0",
+    "@tabler/icons-react": "3.41.1",
     "dayjs": "1.11.20",
     "luxon": "3.7.2",
     "next": "16.2.1",
