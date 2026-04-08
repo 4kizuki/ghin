@@ -538,6 +538,42 @@ export const HistoryView: FunctionComponent<{
     const endMs = new Date(distributeEnd).getTime();
     if (startMs >= endMs) return;
 
+    // Validate chronological order with non-selected adjacent commits
+    const commitByHash = new Map(commits.map((c) => [c.hash, c]));
+
+    // Parent boundary: start must be >= latest non-selected parent date
+    for (const sc of selectedCommits) {
+      for (const parentHash of sc.parents) {
+        if (selectedHashes.has(parentHash)) continue;
+        const parent = commitByHash.get(parentHash);
+        if (!parent) continue;
+        const parentDateMs = new Date(parent.date).getTime();
+        if (startMs < parentDateMs) {
+          notifications.show({
+            message: `範囲の開始日時が親コミット ${parent.shortHash} (${new Date(parent.date).toLocaleString('ja-JP')}) より前のため、時系列が不整合になります`,
+            color: 'red',
+          });
+          return;
+        }
+      }
+    }
+
+    // Child boundary: end must be <= earliest non-selected child date
+    for (const c of commits) {
+      if (selectedHashes.has(c.hash)) continue;
+      for (const parentHash of c.parents) {
+        if (!selectedHashes.has(parentHash)) continue;
+        const childDateMs = new Date(c.date).getTime();
+        if (endMs > childDateMs) {
+          notifications.show({
+            message: `範囲の終了日時が子コミット ${c.shortHash} (${new Date(c.date).toLocaleString('ja-JP')}) より後のため、時系列が不整合になります`,
+            color: 'red',
+          });
+          return;
+        }
+      }
+    }
+
     // Sort selected commits by their current date (oldest first)
     const sorted = [...selectedCommits].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
