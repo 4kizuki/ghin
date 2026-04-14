@@ -18,8 +18,8 @@
   },
   "devDependencies": {
     "@repo/config": "workspace:*",
-    "eslint": "9.39.4",
+    "eslint": "10.0.3",
     "typescript": "5.9.3",
-    "vitest": "3.2.1"
+    "vitest": "4.1.0"
   }
 }
