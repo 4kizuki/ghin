@@ -20,8 +20,8 @@
     "format:check": "prettier --check --ignore-path ../../.prettierignore ."
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "7.5.0",
-    "@prisma/client": "7.5.0"
+    "@prisma/adapter-better-sqlite3": "7.6.0",
+    "@prisma/client": "7.6.0"
   },
   "devDependencies": {
     "@repo/config": "workspace:*",
