@@ -1,115 +1,27 @@
 'use client';
 
 import type { FunctionComponent } from 'react';
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import {
-  Box,
-  Group,
-  Text,
-  Checkbox,
-  ScrollArea,
-  Textarea,
-  TextInput,
-  Button,
-  Switch,
-  Stack,
-  Tooltip,
-  ActionIcon,
-  Badge,
-  Loader,
-  Modal,
-  SegmentedControl,
-  Notification,
-  Divider,
-  Code,
-} from '@mantine/core';
+import { useMemo, useRef } from 'react';
+import { Box, Group, Text, Loader, Notification } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconGitBranch,
-  IconFile,
-  IconFilePlus,
-  IconFileOff,
-  IconFileDiff,
-  IconArrowLeft,
-  IconArrowUp,
-  IconArrowDown,
-  IconTrash,
-} from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import type { RepoStatus, FileChange, FileDiff } from '@/lib/git';
-import {
-  getDiff,
-  stagePaths,
-  unstagePaths,
-  stagePatch,
-  unstagePatch,
-  discardPaths,
-  discardPatch,
-  discardUntrackedFile,
-  commitChanges,
-  setSetting,
-  getRemoteUrl,
-  addRemote,
-  setGitConfig,
-  suggestCommitMessage,
-  suggestBranchName,
-  getMergeMsg,
-  IdentityUnknownError,
-} from '@/lib/api';
-import { AiSuggestButton } from '@/components/ai-suggest-button';
-import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
-import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
+import type { RepoStatus } from '@/lib/git';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
-import { NeverError } from '@repo/never-error';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
+import { useFileSelection } from '@/hooks/use-file-selection';
+import { useFileOperations } from '@/hooks/use-file-operations';
+import { useCommitFlow } from '@/hooks/use-commit-flow';
+import { DiffViewer } from '@/components/diff-viewer';
 import { BranchSwitcher } from '@/components/branch-switcher';
-
-type FileEntry = {
-  path: string;
-  status: FileChange['status'];
-  staged: boolean;
-};
-
-const getFileIcon = (status: FileChange['status']): typeof IconFile => {
-  switch (status) {
-    case 'A':
-    case '?':
-      return IconFilePlus;
-    case 'D':
-      return IconFileOff;
-    case 'M':
-    case 'R':
-    case 'C':
-    case 'U':
-      return IconFileDiff;
-    case '!':
-      return IconFile;
-    default:
-      throw new NeverError(status);
-  }
-};
-
-const getStatusColor = (status: FileChange['status']): string => {
-  switch (status) {
-    case 'A':
-    case '?':
-      return 'green';
-    case 'D':
-      return 'red';
-    case 'M':
-      return 'yellow';
-    case 'R':
-      return 'blue';
-    case 'C':
-      return 'cyan';
-    case 'U':
-      return 'red';
-    case '!':
-      return 'gray';
-    default:
-      throw new NeverError(status);
-  }
-};
+import { StatusBar } from '@/components/changes-view/status-bar';
+import { FileListPane } from '@/components/changes-view/file-list-pane';
+import { CommitPanel } from '@/components/changes-view/commit-panel';
+import { NewBranchModal } from '@/components/changes-view/new-branch-modal';
+import { PushConfirmModal } from '@/components/changes-view/push-confirm-modal';
+import { OriginSetupModal } from '@/components/changes-view/origin-setup-modal';
+import { IdentityModal } from '@/components/changes-view/identity-modal';
+import { DiscardConfirmModal } from '@/components/changes-view/discard-confirm-modal';
 
 export const ChangesView: FunctionComponent<{
   repoPath: string;
@@ -130,549 +42,61 @@ export const ChangesView: FunctionComponent<{
 }) => {
   const router = useRouter();
   const params = useParams<{ repoId: string }>();
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedFileStaged, setSelectedFileStaged] = useState(false);
-  const selectedFileRef = useRef<string | null>(null);
-  const selectedFileStagedRef = useRef(false);
-  const [diff, setDiff] = useState<FileDiff[]>([]);
-  const [loadingDiff, setLoadingDiff] = useState(false);
-  const [commitMsg, setCommitMsg] = useState('');
-  const [newBranchName, setNewBranchName] = useState('');
-  const [committing, setCommitting] = useState(false);
-  const [autoPush, setAutoPush] = useState(initialAutoPush);
-  const [focusedIndex, setFocusedIndex] = useState(0);
   const [diffFontSize, setDiffFontSize] = useDiffFontSize();
   const commitInputRef = useRef<HTMLTextAreaElement>(null);
-
   const [notification, setNotification] = useState<{
     message: string;
     color: string;
   } | null>(null);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
-  const [newBranchOpened, { open: openNewBranch, close: closeNewBranch }] =
-    useDisclosure(false);
-  const [
-    pushConfirmOpened,
-    { open: openPushConfirm, close: closePushConfirm },
-  ] = useDisclosure(false);
-  const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
-  const [pushBranchName, setPushBranchName] = useState('');
-  const [
-    originSetupOpened,
-    { open: openOriginSetup, close: closeOriginSetup },
-  ] = useDisclosure(false);
-  const [originUrl, setOriginUrl] = useState('');
-  const [originSaving, setOriginSaving] = useState(false);
-  const [pendingPushAction, setPendingPushAction] = useState<
-    (() => void) | null
-  >(null);
-  const [identityOpened, { open: openIdentity, close: closeIdentity }] =
-    useDisclosure(false);
-  const [identityName, setIdentityName] = useState('');
-  const [identityEmail, setIdentityEmail] = useState('');
-  const [identitySaving, setIdentitySaving] = useState(false);
-  const [pendingCommitAction, setPendingCommitAction] = useState<
-    (() => Promise<void>) | null
-  >(null);
-  const [aiCommitLoading, setAiCommitLoading] = useState(false);
-  const [aiBranchLoading, setAiBranchLoading] = useState(false);
-  const [discardConfirm, setDiscardConfirm] = useState<{
-    label: string;
-    onConfirm: () => Promise<void>;
-  } | null>(null);
 
   const totalChanges =
     status.stagedFiles.length +
     status.unstagedFiles.length +
     status.untrackedFiles.length;
 
-  const stagedEntries = useMemo(
-    (): FileEntry[] =>
-      status.stagedFiles
-        .map((f) => ({ path: f.path, status: f.status, staged: true }))
-        .sort((a, b) => a.path.localeCompare(b.path)),
-    [status.stagedFiles],
-  );
+  // ─── Custom Hooks ───
+  const fileSelection = useFileSelection({ repoPath, status });
 
-  const unstagedEntries = useMemo((): FileEntry[] => {
-    const entries: FileEntry[] = [];
-    for (const f of status.unstagedFiles) {
-      entries.push({ path: f.path, status: f.status, staged: false });
-    }
-    for (const f of status.untrackedFiles) {
-      entries.push({ path: f.path, status: '?', staged: false });
-    }
-    return entries.sort((a, b) => a.path.localeCompare(b.path));
-  }, [status.unstagedFiles, status.untrackedFiles]);
-
-  const allEntries = useMemo(
-    (): FileEntry[] => [...stagedEntries, ...unstagedEntries],
-    [stagedEntries, unstagedEntries],
-  );
-
-  useEffect(() => {
-    setFocusedIndex((prev) =>
-      Math.min(prev, Math.max(0, allEntries.length - 1)),
-    );
-  }, [allEntries.length]);
-
-  const loadDiff = useCallback(
-    async (filePath: string, staged: boolean) => {
-      setLoadingDiff(true);
-      try {
-        const d = await getDiff(repoPath, staged, filePath);
-        setDiff(d);
-      } catch {
-        setDiff([]);
-      } finally {
-        setLoadingDiff(false);
-      }
-    },
-    [repoPath],
-  );
-
-  useEffect(() => {
-    selectedFileRef.current = selectedFile;
-  }, [selectedFile]);
-  useEffect(() => {
-    selectedFileStagedRef.current = selectedFileStaged;
-  }, [selectedFileStaged]);
-
-  const isInitialStatus = useRef(true);
-  useEffect(() => {
-    if (isInitialStatus.current) {
-      isInitialStatus.current = false;
-      return;
-    }
-    if (selectedFileRef.current) {
-      loadDiff(selectedFileRef.current, selectedFileStagedRef.current);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh diff when status updates from polling
-  }, [status]);
-
-  // Pre-fill commit message from MERGE_MSG when conflicts are detected
-  useEffect(() => {
-    if (!status.hasConflicts) return;
-    if (commitMsg !== '') return;
-    let cancelled = false;
-    void getMergeMsg(repoPath).then((msg) => {
-      if (cancelled || msg === null) return;
-      setCommitMsg(msg);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when hasConflicts changes
-  }, [status.hasConflicts, repoPath]);
-
-  const handleFileClick = useCallback(
-    (file: FileEntry, globalIndex: number) => {
-      setSelectedFile(file.path);
-      setFocusedIndex(globalIndex);
-      setSelectedFileStaged(file.staged);
-      loadDiff(file.path, file.staged);
-    },
-    [loadDiff],
-  );
-
-  const handleFileToggle = useCallback(
-    async (file: FileEntry) => {
-      if (file.staged) {
-        await unstagePaths(repoPath, [file.path]);
-      } else {
-        await stagePaths(repoPath, [file.path]);
-      }
-      await onRefresh();
-      if (selectedFile === file.path) {
-        loadDiff(file.path, selectedFileStaged);
-      }
-    },
-    [repoPath, onRefresh, selectedFile, selectedFileStaged, loadDiff],
-  );
-
-  const handleHunkStage = useCallback(
-    async (patch: string) => {
-      await stagePatch(repoPath, patch);
-      await onRefresh();
-      if (selectedFile) {
-        loadDiff(selectedFile, false);
-      }
-    },
-    [repoPath, onRefresh, selectedFile, loadDiff],
-  );
-
-  const handleHunkUnstage = useCallback(
-    async (patch: string) => {
-      await unstagePatch(repoPath, patch);
-      await onRefresh();
-      if (selectedFile) {
-        loadDiff(selectedFile, true);
-      }
-    },
-    [repoPath, onRefresh, selectedFile, loadDiff],
-  );
-
-  const handleDiscardFile = useCallback(
-    (file: FileEntry) => {
-      const isUntracked = file.status === '?';
-      setDiscardConfirm({
-        label: isUntracked
-          ? `Untracked ファイル "${file.path}" を削除しますか？`
-          : `"${file.path}" の変更を破棄しますか？`,
-        onConfirm: async () => {
-          if (isUntracked) {
-            await discardUntrackedFile(repoPath, file.path);
-          } else {
-            await discardPaths(repoPath, [file.path]);
-          }
-          await onRefresh();
-          if (selectedFile === file.path && !selectedFileStaged) {
-            setSelectedFile(null);
-            setDiff([]);
-          }
-        },
-      });
-    },
-    [repoPath, onRefresh, selectedFile, selectedFileStaged],
-  );
-
-  const handleDiscardHunk = useCallback(
-    (patch: string) => {
-      setDiscardConfirm({
-        label: 'この hunk の変更を破棄しますか？',
-        onConfirm: async () => {
-          await discardPatch(repoPath, patch);
-          await onRefresh();
-          if (selectedFile) {
-            loadDiff(selectedFile, false);
-          }
-        },
-      });
-    },
-    [repoPath, onRefresh, selectedFile, loadDiff],
-  );
-
-  const handleDiscardAll = useCallback(() => {
-    const trackedPaths = status.unstagedFiles.map((f) => f.path);
-    if (trackedPaths.length === 0) return;
-    setDiscardConfirm({
-      label: `${trackedPaths.length} 件の unstaged changes をすべて破棄しますか？`,
-      onConfirm: async () => {
-        await discardPaths(repoPath, trackedPaths);
-        await onRefresh();
-        setSelectedFile(null);
-        setDiff([]);
-      },
-    });
-  }, [repoPath, status.unstagedFiles, onRefresh]);
-
-  const handleStageAll = useCallback(async () => {
-    const paths = unstagedEntries.map((f) => f.path);
-    if (paths.length === 0) return;
-    await stagePaths(repoPath, paths);
-    await onRefresh();
-  }, [repoPath, unstagedEntries, onRefresh]);
-
-  const handleUnstageAll = useCallback(async () => {
-    const paths = stagedEntries.map((f) => f.path);
-    if (paths.length === 0) return;
-    await unstagePaths(repoPath, paths);
-    await onRefresh();
-  }, [repoPath, stagedEntries, onRefresh]);
-
-  const fetchRemoteUrlInfo = useCallback(async (): Promise<boolean> => {
-    try {
-      const result = await getRemoteUrl(repoPath, 'origin');
-      setRemoteUrl(result.url);
-      return true;
-    } catch {
-      setRemoteUrl(null);
-      return false;
-    }
-  }, [repoPath]);
-
-  const handleIdentityError = useCallback(
-    (error: unknown, retryAction: () => Promise<void>) => {
-      if (error instanceof IdentityUnknownError) {
-        setIdentityName(error.userName ?? defaultAuthorName);
-        setIdentityEmail(error.userEmail ?? defaultAuthorEmail);
-        setPendingCommitAction(() => retryAction);
-        openIdentity();
-        return true;
-      }
-      return false;
-    },
-    [openIdentity, defaultAuthorName, defaultAuthorEmail],
-  );
-
-  const handleCommitDirect = useCallback(async () => {
-    if (!commitMsg.trim()) return;
-    setCommitting(true);
-    try {
-      await commitChanges(repoPath, commitMsg.trim(), undefined, false);
-      setCommitMsg('');
-      await onRefresh();
-    } catch (error) {
-      handleIdentityError(error, async () => {
-        await commitChanges(repoPath, commitMsg.trim(), undefined, false);
-        setCommitMsg('');
-        await onRefresh();
-      });
-    } finally {
-      setCommitting(false);
-    }
-  }, [repoPath, commitMsg, onRefresh, handleIdentityError]);
-
-  const handleCommitAndPush = useCallback(async () => {
-    if (!commitMsg.trim()) return;
-    setCommitting(true);
-    const effectivePushBranch =
-      !status.upstream && pushBranchName ? pushBranchName : undefined;
-    try {
-      await commitChanges(
-        repoPath,
-        commitMsg.trim(),
-        undefined,
-        true,
-        effectivePushBranch,
-      );
-      setCommitMsg('');
-      closePushConfirm();
-      await onRefresh();
-    } catch (error) {
-      handleIdentityError(error, async () => {
-        const branch =
-          !status.upstream && pushBranchName ? pushBranchName : undefined;
-        await commitChanges(
-          repoPath,
-          commitMsg.trim(),
-          undefined,
-          true,
-          branch,
-        );
-        setCommitMsg('');
-        closePushConfirm();
-        await onRefresh();
-      });
-    } finally {
-      setCommitting(false);
-    }
-  }, [
+  const fileOps = useFileOperations({
     repoPath,
-    commitMsg,
-    status.upstream,
-    pushBranchName,
     onRefresh,
-    closePushConfirm,
-    handleIdentityError,
-  ]);
+    selectedFile: fileSelection.selectedFile,
+    selectedFileStaged: fileSelection.selectedFileStaged,
+    loadDiff: fileSelection.loadDiff,
+    clearSelection: fileSelection.clearSelection,
+    stagedEntries: fileSelection.stagedEntries,
+    unstagedEntries: fileSelection.unstagedEntries,
+  });
 
-  const showOriginSetup = useCallback(
-    (onComplete: () => void) => {
-      setOriginUrl('');
-      setPendingPushAction(() => onComplete);
-      openOriginSetup();
-    },
-    [openOriginSetup],
-  );
-
-  const handleAddOrigin = useCallback(async () => {
-    if (!originUrl.trim()) return;
-    setOriginSaving(true);
-    try {
-      await addRemote(repoPath, 'origin', originUrl.trim());
-      setRemoteUrl(originUrl.trim());
-      closeOriginSetup();
-      pendingPushAction?.();
-    } catch {
-      notifications.show({
-        title: 'origin の追加に失敗しました',
-        message:
-          'URL を確認してください。すでに origin が存在する可能性があります。',
-        color: 'red',
-        style: { marginBottom: 80 },
-      });
-    } finally {
-      setOriginSaving(false);
-    }
-  }, [repoPath, originUrl, closeOriginSetup, pendingPushAction]);
-
-  const handleSuggestCommitMessage = useCallback(async () => {
-    if (status.stagedFiles.length === 0) return;
-    setAiCommitLoading(true);
-    try {
-      const suggestion = await suggestCommitMessage(
-        repoPath,
-        status.branch,
-        status.stagedFiles.map((f) => ({
-          path: f.path,
-          status: f.status,
-          staged: f.staged,
-        })),
-      );
-      const message = suggestion.body
-        ? `${suggestion.subject}\n\n${suggestion.body}`
-        : suggestion.subject;
-      setCommitMsg(message);
-    } catch {
-      notifications.show({
-        title: 'AI Suggestion Failed',
-        message: 'Could not generate a commit message.',
-        color: 'red',
-      });
-    } finally {
-      setAiCommitLoading(false);
-    }
-  }, [repoPath, status.branch, status.stagedFiles]);
-
-  const handleSuggestBranchName = useCallback(async () => {
-    if (!commitMsg.trim()) return;
-    setAiBranchLoading(true);
-    try {
-      const suggestion = await suggestBranchName({
-        commitMessage: commitMsg.trim(),
-      });
-      setNewBranchName(suggestion.branchName);
-    } catch {
-      notifications.show({
-        title: 'AI Suggestion Failed',
-        message: 'Could not generate a branch name.',
-        color: 'red',
-      });
-    } finally {
-      setAiBranchLoading(false);
-    }
-  }, [commitMsg]);
-
-  const handleCommit = useCallback(async () => {
-    if (!commitMsg.trim()) return;
-    if (autoPush) {
-      setPushBranchName('');
-      const ok = await fetchRemoteUrlInfo();
-      if (!ok) {
-        showOriginSetup(() => openPushConfirm());
-        return;
-      }
-      openPushConfirm();
-    } else {
-      handleCommitDirect();
-    }
-  }, [
-    commitMsg,
-    autoPush,
-    fetchRemoteUrlInfo,
-    showOriginSetup,
-    openPushConfirm,
-    handleCommitDirect,
-  ]);
-
-  const handleOpenNewBranch = useCallback(async () => {
-    setPushBranchName('');
-    if (autoPush) {
-      const ok = await fetchRemoteUrlInfo();
-      if (!ok) {
-        showOriginSetup(() => openNewBranch());
-        return;
-      }
-    }
-    openNewBranch();
-  }, [autoPush, fetchRemoteUrlInfo, showOriginSetup, openNewBranch]);
-
-  const handleCommitToNewBranch = useCallback(async () => {
-    if (!commitMsg.trim() || !newBranchName.trim()) return;
-    setCommitting(true);
-    const effectivePushBranch =
-      autoPush && pushBranchName ? pushBranchName : undefined;
-    try {
-      await commitChanges(
-        repoPath,
-        commitMsg.trim(),
-        newBranchName.trim(),
-        autoPush,
-        effectivePushBranch,
-      );
-      setCommitMsg('');
-      setNewBranchName('');
-      setPushBranchName('');
-      closeNewBranch();
-      await onRefresh();
-    } catch (error) {
-      handleIdentityError(error, async () => {
-        const branch = autoPush && pushBranchName ? pushBranchName : undefined;
-        await commitChanges(
-          repoPath,
-          commitMsg.trim(),
-          newBranchName.trim(),
-          autoPush,
-          branch,
-        );
-        setCommitMsg('');
-        setNewBranchName('');
-        setPushBranchName('');
-        closeNewBranch();
-        await onRefresh();
-      });
-    } finally {
-      setCommitting(false);
-    }
-  }, [
+  const commitFlow = useCommitFlow({
     repoPath,
-    commitMsg,
-    newBranchName,
-    autoPush,
-    pushBranchName,
+    status,
+    commitMsg: fileSelection.commitMsg,
+    setCommitMsg: fileSelection.setCommitMsg,
     onRefresh,
-    closeNewBranch,
-    handleIdentityError,
-  ]);
+    defaultAuthorName,
+    defaultAuthorEmail,
+    initialAutoPush,
+  });
 
-  const handleSaveIdentity = useCallback(async () => {
-    if (!identityName.trim() || !identityEmail.trim()) return;
-    setIdentitySaving(true);
-    try {
-      await setGitConfig(repoPath, 'user.name', identityName.trim());
-      await setGitConfig(repoPath, 'user.email', identityEmail.trim());
-      closeIdentity();
-      if (pendingCommitAction) {
-        await pendingCommitAction();
-        setPendingCommitAction(null);
-      }
-    } catch {
-      notifications.show({
-        title: 'Git config の設定に失敗しました',
-        message: 'user.name / user.email を設定できませんでした。',
-        color: 'red',
-        style: { marginBottom: 80 },
-      });
-    } finally {
-      setIdentitySaving(false);
-    }
-  }, [
-    repoPath,
-    identityName,
-    identityEmail,
-    closeIdentity,
-    pendingCommitAction,
-  ]);
-
-  const handleAutoPushToggle = useCallback((checked: boolean) => {
-    setAutoPush(checked);
-    setSetting('autoPush', String(checked));
-  }, []);
-
+  // ─── Keyboard shortcuts ───
   const shortcuts = useMemo(
     () => [
       {
         key: 'j',
         handler: () =>
-          setFocusedIndex((prev) => {
-            const next = Math.min(prev + 1, allEntries.length - 1);
-            const file = allEntries[next];
+          fileSelection.setFocusedIndex((prev: number) => {
+            const next = Math.min(
+              prev + 1,
+              fileSelection.allEntries.length - 1,
+            );
+            const file = fileSelection.allEntries[next];
             if (file) {
-              setSelectedFile(file.path);
-              setSelectedFileStaged(file.staged);
-              loadDiff(file.path, file.staged);
+              fileSelection.setSelectedFile(file.path);
+              fileSelection.setSelectedFileStaged(file.staged);
+              fileSelection.loadDiff(file.path, file.staged);
             }
             return next;
           }),
@@ -680,13 +104,13 @@ export const ChangesView: FunctionComponent<{
       {
         key: 'k',
         handler: () =>
-          setFocusedIndex((prev) => {
+          fileSelection.setFocusedIndex((prev: number) => {
             const next = Math.max(prev - 1, 0);
-            const file = allEntries[next];
+            const file = fileSelection.allEntries[next];
             if (file) {
-              setSelectedFile(file.path);
-              setSelectedFileStaged(file.staged);
-              loadDiff(file.path, file.staged);
+              fileSelection.setSelectedFile(file.path);
+              fileSelection.setSelectedFileStaged(file.staged);
+              fileSelection.loadDiff(file.path, file.staged);
             }
             return next;
           }),
@@ -694,117 +118,21 @@ export const ChangesView: FunctionComponent<{
       {
         key: ' ',
         handler: () => {
-          const file = allEntries[focusedIndex];
-          if (file) handleFileToggle(file);
+          const file = fileSelection.allEntries[fileSelection.focusedIndex];
+          if (file) fileOps.handleFileToggle(file);
         },
       },
       {
         key: 'Enter',
         meta: true,
-        handler: handleCommit,
+        handler: commitFlow.handleCommit,
       },
       { key: 'b', meta: true, handler: openBranch },
     ],
-    [
-      allEntries,
-      focusedIndex,
-      handleFileToggle,
-      handleCommit,
-      loadDiff,
-      openBranch,
-    ],
+    [fileSelection, fileOps, commitFlow, openBranch],
   );
 
   useKeyboardShortcuts(shortcuts);
-
-  const renderFileRow = (file: FileEntry, globalIndex: number) => {
-    const FileIcon = getFileIcon(file.status);
-    const isFocused = globalIndex === focusedIndex;
-    const isSelected =
-      selectedFile === file.path && selectedFileStaged === file.staged;
-    return (
-      <Group
-        key={`${file.path}-${String(file.staged)}`}
-        gap="xs"
-        px="sm"
-        py={4}
-        style={(theme) => ({
-          cursor: 'pointer',
-          backgroundColor: isSelected
-            ? theme.colors.blue[0]
-            : isFocused
-              ? theme.colors.gray[0]
-              : undefined,
-          borderLeft: isFocused
-            ? `2px solid ${theme.colors.blue[5]}`
-            : '2px solid transparent',
-          '&:hover': {
-            backgroundColor: theme.colors.gray[0],
-          },
-        })}
-        onClick={() => handleFileClick(file, globalIndex)}
-        wrap="nowrap"
-      >
-        <Checkbox
-          size="xs"
-          checked={file.staged}
-          onChange={() => handleFileToggle(file)}
-          onClick={(e) => e.stopPropagation()}
-          style={{ flex: '0 0 auto' }}
-        />
-        <Tooltip label={file.path} openDelay={500}>
-          <Group
-            gap={4}
-            wrap="nowrap"
-            style={{
-              overflow: 'hidden',
-              flex: '1 1 auto',
-              minWidth: 0,
-            }}
-          >
-            <FileIcon
-              size={14}
-              style={{ flex: '0 0 auto' }}
-              color={`var(--mantine-color-${getStatusColor(file.status)}-6)`}
-            />
-            <Text size="xs" truncate="end" style={{ minWidth: 0 }}>
-              {file.path.split('/').pop()}
-            </Text>
-            <Text size="xs" c="dimmed" truncate="end" style={{ minWidth: 0 }}>
-              {file.path.includes('/')
-                ? file.path.slice(0, file.path.lastIndexOf('/'))
-                : ''}
-            </Text>
-          </Group>
-        </Tooltip>
-        <Badge
-          size="xs"
-          variant="light"
-          color={getStatusColor(file.status)}
-          ml="auto"
-          style={{ flex: '0 0 auto' }}
-        >
-          {file.status}
-        </Badge>
-        {!file.staged && (
-          <Tooltip label="Discard changes">
-            <ActionIcon
-              size="xs"
-              variant="subtle"
-              color="red"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDiscardFile(file);
-              }}
-              style={{ flex: '0 0 auto' }}
-            >
-              <IconTrash size={12} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </Group>
-    );
-  };
 
   return (
     <Box
@@ -815,93 +143,20 @@ export const ChangesView: FunctionComponent<{
         overflow: 'hidden',
       }}
     >
-      {/* Status Bar */}
-      <Group
-        px="md"
-        justify="space-between"
-        style={(theme) => ({
-          borderBottom: `1px solid ${theme.colors.gray[3]}`,
-          height: 51,
-          flex: '0 0 51px',
-          alignItems: 'center',
-        })}
-      >
-        <Group gap="sm">
-          <Button
-            size="xs"
-            variant="subtle"
-            leftSection={<IconArrowLeft size={14} />}
-            onClick={() => router.push(`/repos/${params.repoId}/histories`)}
-          >
-            History
-          </Button>
-          <Group gap={4}>
-            <IconGitBranch size={16} />
-            <Text fw={600} size="sm">
-              {status.branch}
-            </Text>
-          </Group>
-          {status.ahead > 0 && (
-            <Tooltip label={`${status.ahead} unpushed`}>
-              <Badge
-                color="orange"
-                variant="light"
-                size="sm"
-                leftSection={<IconArrowUp size={10} />}
-              >
-                {status.ahead}
-              </Badge>
-            </Tooltip>
-          )}
-          {status.behind > 0 && (
-            <Tooltip label={`${status.behind} unpulled`}>
-              <Badge
-                color="blue"
-                variant="light"
-                size="sm"
-                leftSection={<IconArrowDown size={10} />}
-              >
-                {status.behind}
-              </Badge>
-            </Tooltip>
-          )}
-          {status.branch !== 'main' && status.aheadOfMain > 0 && (
-            <Badge color="gray" variant="light" size="sm">
-              main +{status.aheadOfMain}
-            </Badge>
-          )}
-          {status.branch !== 'main' && status.behindMain > 0 && (
-            <Badge color="gray" variant="light" size="sm">
-              main -{status.behindMain}
-            </Badge>
-          )}
-          {totalChanges > 0 && (
-            <Badge color="violet" variant="light" size="sm">
-              {totalChanges} changes
-            </Badge>
-          )}
-          {status.hasConflicts && (
-            <Badge color="red" variant="filled" size="sm">
-              CONFLICTS
-            </Badge>
-          )}
-        </Group>
-
-        <Group gap="xs">
-          <SegmentedControl
-            size="xs"
-            value={diffFontSize}
-            onChange={(v) => {
-              if (isDiffFontSize(v)) setDiffFontSize(v);
-            }}
-            data={[
-              { label: 'XS', value: 'xs' },
-              { label: 'S', value: 's' },
-              { label: 'N', value: 'n' },
-            ]}
-          />
-        </Group>
-      </Group>
+      <StatusBar
+        branch={status.branch}
+        ahead={status.ahead}
+        behind={status.behind}
+        aheadOfMain={status.aheadOfMain}
+        behindMain={status.behindMain}
+        totalChanges={totalChanges}
+        hasConflicts={status.hasConflicts}
+        diffFontSize={diffFontSize}
+        onDiffFontSizeChange={setDiffFontSize}
+        onNavigateHistory={() =>
+          router.push(`/repos/${params.repoId}/histories`)
+        }
+      />
 
       {notification && (
         <Notification
@@ -923,111 +178,20 @@ export const ChangesView: FunctionComponent<{
           overflow: 'hidden',
         }}
       >
-        {/* Left pane: file list (staged / unstaged) */}
-        <Box
-          style={{
-            width: 300,
-            minWidth: 200,
-            borderRight: '1px solid var(--mantine-color-gray-3)',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-          }}
-        >
-          {/* Staged section */}
-          <Box
-            style={{
-              flex: '1 1 0',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <Group px="sm" py={6} gap="xs" style={{ flex: '0 0 auto' }}>
-              <Checkbox
-                size="xs"
-                checked={stagedEntries.length > 0}
-                disabled={stagedEntries.length === 0}
-                onChange={handleUnstageAll}
-              />
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Staged Changes ({stagedEntries.length})
-              </Text>
-            </Group>
-            <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
-              {stagedEntries.length === 0 ? (
-                <Text size="xs" c="dimmed" px="sm" py={4}>
-                  No staged changes
-                </Text>
-              ) : (
-                stagedEntries.map((file, index) => renderFileRow(file, index))
-              )}
-            </ScrollArea>
-          </Box>
-
-          {/* Divider */}
-          <Box
-            style={{
-              flex: '0 0 auto',
-              borderTop: '1px solid var(--mantine-color-gray-3)',
-            }}
-          />
-
-          {/* Unstaged section */}
-          <Box
-            style={{
-              flex: '1 1 0',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <Group
-              px="sm"
-              py={6}
-              gap="xs"
-              justify="space-between"
-              style={{ flex: '0 0 auto' }}
-            >
-              <Group gap="xs">
-                <Checkbox
-                  size="xs"
-                  checked={false}
-                  disabled={unstagedEntries.length === 0}
-                  onChange={handleStageAll}
-                />
-                <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                  Unstaged Changes ({unstagedEntries.length})
-                </Text>
-              </Group>
-              {status.unstagedFiles.length > 0 && (
-                <Tooltip label="Discard all tracked changes">
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={handleDiscardAll}
-                  >
-                    <IconTrash size={12} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
-            </Group>
-            <ScrollArea style={{ flex: '1 1 0', overscrollBehavior: 'none' }}>
-              {unstagedEntries.length === 0 ? (
-                <Text size="xs" c="dimmed" px="sm" py={4}>
-                  No unstaged changes
-                </Text>
-              ) : (
-                unstagedEntries.map((file, index) =>
-                  renderFileRow(file, stagedEntries.length + index),
-                )
-              )}
-            </ScrollArea>
-          </Box>
-        </Box>
+        <FileListPane
+          stagedEntries={fileSelection.stagedEntries}
+          unstagedEntries={fileSelection.unstagedEntries}
+          focusedIndex={fileSelection.focusedIndex}
+          selectedFile={fileSelection.selectedFile}
+          selectedFileStaged={fileSelection.selectedFileStaged}
+          hasTrackedUnstaged={status.unstagedFiles.length > 0}
+          onFileClick={fileSelection.handleFileClick}
+          onFileToggle={fileOps.handleFileToggle}
+          onDiscardFile={fileOps.handleDiscardFile}
+          onStageAll={fileOps.handleStageAll}
+          onUnstageAll={fileOps.handleUnstageAll}
+          onDiscardAll={fileOps.handleDiscardAll}
+        />
 
         {/* Right pane: diff viewer */}
         <Box
@@ -1039,20 +203,24 @@ export const ChangesView: FunctionComponent<{
             overflow: 'hidden',
           }}
         >
-          {loadingDiff ? (
+          {fileSelection.loadingDiff ? (
             <Group justify="center" pt="xl">
               <Loader size="sm" />
             </Group>
-          ) : selectedFile && diff.length > 0 ? (
+          ) : fileSelection.selectedFile && fileSelection.diff.length > 0 ? (
             <DiffViewer
-              files={diff}
-              staged={selectedFileStaged}
+              files={fileSelection.diff}
+              staged={fileSelection.selectedFileStaged}
               diffFontSize={diffFontSize}
-              onStageHunk={handleHunkStage}
-              onUnstageHunk={handleHunkUnstage}
-              onDiscardHunk={selectedFileStaged ? undefined : handleDiscardHunk}
+              onStageHunk={fileOps.handleHunkStage}
+              onUnstageHunk={fileOps.handleHunkUnstage}
+              onDiscardHunk={
+                fileSelection.selectedFileStaged
+                  ? undefined
+                  : fileOps.handleDiscardHunk
+              }
             />
-          ) : selectedFile ? (
+          ) : fileSelection.selectedFile ? (
             <Group justify="center" pt="xl">
               <Text c="dimmed" size="sm">
                 No diff available
@@ -1068,80 +236,21 @@ export const ChangesView: FunctionComponent<{
         </Box>
       </Box>
 
-      {/* Bottom: commit panel */}
-      <Box
-        px="md"
-        py="sm"
-        style={{
-          borderTop: '1px solid var(--mantine-color-gray-3)',
-        }}
-      >
-        <Group align="flex-end" gap="sm">
-          <Stack gap={4} style={{ flex: 1 }}>
-            <Group gap="xs" align="flex-end" wrap="nowrap">
-              <IconGitBranch
-                size={14}
-                style={{ flexShrink: 0, marginBottom: 6 }}
-              />
-              <Text
-                size="xs"
-                fw={600}
-                style={{ flexShrink: 0, marginBottom: 6 }}
-              >
-                {status.branch}
-              </Text>
-              <Textarea
-                placeholder="Commit message (Enter: newline, ⌘+Enter: commit)"
-                size="xs"
-                autosize
-                minRows={1}
-                value={commitMsg}
-                onChange={(e) => setCommitMsg(e.currentTarget.value)}
-                ref={commitInputRef}
-                rightSection={
-                  aiEnabled ? (
-                    <AiSuggestButton
-                      onClick={handleSuggestCommitMessage}
-                      loading={aiCommitLoading}
-                      disabled={status.stagedFiles.length === 0}
-                      tooltip="AI: suggest commit message"
-                    />
-                  ) : undefined
-                }
-                rightSectionWidth={aiEnabled ? 32 : undefined}
-                style={{ flex: 1 }}
-              />
-            </Group>
-          </Stack>
-          <Group gap="xs">
-            <Tooltip label="Push after commit">
-              <Switch
-                size="xs"
-                label="Push"
-                checked={autoPush}
-                onChange={(e) => handleAutoPushToggle(e.currentTarget.checked)}
-              />
-            </Tooltip>
-            <Button
-              size="sm"
-              onClick={handleCommit}
-              loading={committing}
-              disabled={!commitMsg.trim() || status.stagedFiles.length === 0}
-            >
-              Commit
-            </Button>
-            <Button
-              size="sm"
-              variant="light"
-              onClick={handleOpenNewBranch}
-              loading={committing}
-              disabled={!commitMsg.trim() || status.stagedFiles.length === 0}
-            >
-              Commit to New Branch
-            </Button>
-          </Group>
-        </Group>
-      </Box>
+      <CommitPanel
+        branch={status.branch}
+        commitMsg={fileSelection.commitMsg}
+        onCommitMsgChange={fileSelection.setCommitMsg}
+        commitInputRef={commitInputRef}
+        aiEnabled={aiEnabled}
+        aiCommitLoading={commitFlow.aiCommitLoading}
+        onSuggestCommitMessage={commitFlow.handleSuggestCommitMessage}
+        stagedCount={status.stagedFiles.length}
+        autoPush={commitFlow.autoPush}
+        onAutoPushToggle={commitFlow.handleAutoPushToggle}
+        onCommit={commitFlow.handleCommit}
+        onOpenNewBranch={commitFlow.handleOpenNewBranch}
+        committing={commitFlow.committing}
+      />
 
       <BranchSwitcher
         opened={branchOpened}
@@ -1150,240 +259,59 @@ export const ChangesView: FunctionComponent<{
         onSwitch={onRefresh}
       />
 
-      <Modal
-        opened={newBranchOpened}
-        onClose={closeNewBranch}
-        title="Commit to New Branch"
-      >
-        <Stack>
-          <TextInput
-            label="Branch name"
-            placeholder="feature/my-branch"
-            value={newBranchName}
-            onChange={(e) => setNewBranchName(e.currentTarget.value)}
-            data-autofocus
-            rightSection={
-              aiEnabled ? (
-                <AiSuggestButton
-                  onClick={handleSuggestBranchName}
-                  loading={aiBranchLoading}
-                  disabled={!commitMsg.trim()}
-                  tooltip="AI: suggest branch name"
-                />
-              ) : undefined
-            }
-            rightSectionWidth={aiEnabled ? 32 : undefined}
-          />
-          {autoPush && (
-            <>
-              <Divider label="Push destination" labelPosition="left" />
-              <Stack gap="xs">
-                <Group gap="xs">
-                  <Text size="sm" fw={500}>
-                    Remote:
-                  </Text>
-                  <Text size="sm">origin</Text>
-                  {remoteUrl && (
-                    <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
-                      {remoteUrl}
-                    </Code>
-                  )}
-                </Group>
-                <TextInput
-                  label="Remote branch name"
-                  description="origin/ に push されるブランチ名"
-                  placeholder={newBranchName || 'feature/my-branch'}
-                  value={pushBranchName}
-                  onChange={(e) => setPushBranchName(e.currentTarget.value)}
-                  rightSection={
-                    <Badge size="xs" color="green" variant="light">
-                      new
-                    </Badge>
-                  }
-                  rightSectionWidth={40}
-                />
-                <Text size="xs" c="dimmed">
-                  push to: origin/{pushBranchName || newBranchName || '...'}
-                </Text>
-              </Stack>
-            </>
-          )}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeNewBranch}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCommitToNewBranch}
-              loading={committing}
-              disabled={!newBranchName.trim()}
-            >
-              {autoPush ? 'Commit & Push' : 'Commit'}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <NewBranchModal
+        opened={commitFlow.newBranchOpened}
+        onClose={commitFlow.closeNewBranch}
+        newBranchName={commitFlow.newBranchName}
+        onNewBranchNameChange={commitFlow.setNewBranchName}
+        autoPush={commitFlow.autoPush}
+        remoteUrl={commitFlow.remoteUrl}
+        pushBranchName={commitFlow.pushBranchName}
+        onPushBranchNameChange={commitFlow.setPushBranchName}
+        commitMsg={fileSelection.commitMsg}
+        aiEnabled={aiEnabled}
+        aiBranchLoading={commitFlow.aiBranchLoading}
+        onSuggestBranchName={commitFlow.handleSuggestBranchName}
+        onCommit={commitFlow.handleCommitToNewBranch}
+        committing={commitFlow.committing}
+      />
 
-      <Modal
-        opened={pushConfirmOpened}
-        onClose={closePushConfirm}
-        title="Push Confirmation"
-      >
-        <Stack>
-          <Stack gap="xs">
-            <Group gap="xs">
-              <Text size="sm" fw={500}>
-                Remote:
-              </Text>
-              <Text size="sm">origin</Text>
-              {remoteUrl && (
-                <Code style={{ fontSize: 'var(--mantine-font-size-xs)' }}>
-                  {remoteUrl}
-                </Code>
-              )}
-            </Group>
-            {status.upstream ? (
-              <Group gap="xs">
-                <Text size="sm" fw={500}>
-                  Push to:
-                </Text>
-                <Text size="sm">{status.upstream}</Text>
-              </Group>
-            ) : (
-              <TextInput
-                label="Remote branch name"
-                description="upstream 未設定のため、新しい remote branch を作成します"
-                placeholder={status.branch}
-                value={pushBranchName}
-                onChange={(e) => setPushBranchName(e.currentTarget.value)}
-                rightSection={
-                  <Badge size="xs" color="green" variant="light">
-                    new
-                  </Badge>
-                }
-                rightSectionWidth={40}
-              />
-            )}
-            <Text size="xs" c="dimmed">
-              push to:{' '}
-              {status.upstream ?? `origin/${pushBranchName || status.branch}`}
-            </Text>
-          </Stack>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closePushConfirm}>
-              Cancel
-            </Button>
-            <Button onClick={handleCommitAndPush} loading={committing}>
-              Commit & Push
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <PushConfirmModal
+        opened={commitFlow.pushConfirmOpened}
+        onClose={commitFlow.closePushConfirm}
+        remoteUrl={commitFlow.remoteUrl}
+        upstream={status.upstream}
+        branch={status.branch}
+        pushBranchName={commitFlow.pushBranchName}
+        onPushBranchNameChange={commitFlow.setPushBranchName}
+        onConfirm={commitFlow.handleCommitAndPush}
+        committing={commitFlow.committing}
+      />
 
-      <Modal
-        opened={originSetupOpened}
-        onClose={closeOriginSetup}
-        title="origin リモートの追加"
-      >
-        <Stack>
-          <Text size="sm">
-            remote &quot;origin&quot; が設定されていません。リモートリポジトリの
-            URL を入力してください。
-          </Text>
-          <TextInput
-            label="URL"
-            placeholder="https://github.com/user/repo.git"
-            value={originUrl}
-            onChange={(e) => setOriginUrl(e.currentTarget.value)}
-            data-autofocus
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeOriginSetup}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddOrigin}
-              loading={originSaving}
-              disabled={!originUrl.trim()}
-            >
-              追加して続行
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <OriginSetupModal
+        opened={commitFlow.originSetupOpened}
+        onClose={commitFlow.closeOriginSetup}
+        originUrl={commitFlow.originUrl}
+        onOriginUrlChange={commitFlow.setOriginUrl}
+        onSubmit={commitFlow.handleAddOrigin}
+        saving={commitFlow.originSaving}
+      />
 
-      <Modal
-        opened={identityOpened}
-        onClose={() => {
-          closeIdentity();
-          setPendingCommitAction(null);
-        }}
-        title="Git Author Identity"
-      >
-        <Stack>
-          <Text size="sm">
-            このリポジトリに user.name / user.email
-            が設定されていません。ローカル設定を行います。
-          </Text>
-          <TextInput
-            label="user.name"
-            placeholder="Your Name"
-            value={identityName}
-            onChange={(e) => setIdentityName(e.currentTarget.value)}
-            data-autofocus
-          />
-          <TextInput
-            label="user.email"
-            placeholder="you@example.com"
-            value={identityEmail}
-            onChange={(e) => setIdentityEmail(e.currentTarget.value)}
-          />
-          <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => {
-                closeIdentity();
-                setPendingCommitAction(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveIdentity}
-              loading={identitySaving}
-              disabled={!identityName.trim() || !identityEmail.trim()}
-            >
-              Save & Commit
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <IdentityModal
+        opened={commitFlow.identityOpened}
+        onClose={commitFlow.handleCloseIdentity}
+        identityName={commitFlow.identityName}
+        onIdentityNameChange={commitFlow.setIdentityName}
+        identityEmail={commitFlow.identityEmail}
+        onIdentityEmailChange={commitFlow.setIdentityEmail}
+        onSave={commitFlow.handleSaveIdentity}
+        saving={commitFlow.identitySaving}
+      />
 
-      <Modal
-        opened={discardConfirm !== null}
-        onClose={() => setDiscardConfirm(null)}
-        title="Discard Changes"
-      >
-        <Stack>
-          <Text size="sm">{discardConfirm?.label}</Text>
-          <Text size="xs" c="red">
-            この操作は元に戻せません。
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDiscardConfirm(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              onClick={async () => {
-                await discardConfirm?.onConfirm();
-                setDiscardConfirm(null);
-              }}
-            >
-              Discard
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <DiscardConfirmModal
+        discard={fileOps.discardConfirm}
+        onClose={() => fileOps.setDiscardConfirm(null)}
+      />
     </Box>
   );
 };
