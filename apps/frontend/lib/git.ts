@@ -1,6 +1,6 @@
 import 'server-only';
 import { exec as execCb, execFile } from 'node:child_process';
-import { unlink } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -844,6 +844,14 @@ const getConfig = async (cwd: string, key: string): Promise<string | null> => {
   }
 };
 
+const addRemote = async (
+  cwd: string,
+  name: string,
+  url: string,
+): Promise<void> => {
+  await exec(['remote', 'add', name, url], cwd);
+};
+
 const setLocalConfig = async (
   cwd: string,
   key: string,
@@ -1001,6 +1009,15 @@ const distributeCommitDates = async (
   }
 };
 
+const getMergeMsg = async (cwd: string): Promise<string | null> => {
+  try {
+    const msg = await readFile(join(cwd, '.git', 'MERGE_MSG'), 'utf-8');
+    return msg.trim() || null;
+  } catch {
+    return null;
+  }
+};
+
 export const git = {
   getStatus,
   getDiff,
@@ -1042,4 +1059,6 @@ export const git = {
   deleteUntrackedFile,
   isWorkingTreeClean,
   distributeCommitDates,
+  addRemote,
+  getMergeMsg,
 };

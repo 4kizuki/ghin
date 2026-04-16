@@ -378,6 +378,16 @@ export const mergeRef = (
     body: JSON.stringify({ repo, ref }),
   });
 
+// ─── Merge Message ──────────────────────────────────────────────────
+
+const mergeMsgSchema = z.object({ message: z.string().nullable() });
+
+export const getMergeMsg = (repo: string): Promise<string | null> =>
+  fetchJson(
+    `/api/git/merge-msg?repo=${encodeURIComponent(repo)}`,
+    mergeMsgSchema,
+  ).then((r) => r.message);
+
 // ─── Reset ──────────────────────────────────────────────────────────
 
 export const resetToCommit = (
@@ -488,6 +498,17 @@ export const fetchRemotes = (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, remotes }),
+  });
+
+export const addRemote = (
+  repo: string,
+  name: string,
+  url: string,
+): Promise<{ ok: boolean }> =>
+  fetchJson('/api/git/add-remote', okSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, name, url }),
   });
 
 export const getRemotes = (repo: string): Promise<{ remotes: string[] }> =>

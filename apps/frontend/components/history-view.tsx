@@ -23,6 +23,8 @@ import {
   Checkbox,
   Divider,
   Menu,
+  Modal,
+  TextInput,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
@@ -62,6 +64,8 @@ import {
   getCommitDiff,
   pullAndMergeMain,
   pushChanges,
+  addRemote,
+  getRemoteUrl,
   fetchRemotes as apiFetchRemotes,
   getRemotes as apiGetRemotes,
   updateAutoFetch,
@@ -165,6 +169,12 @@ export const HistoryView: FunctionComponent<{
     useDisclosure(false);
   const [branchOpened, { open: openBranch, close: closeBranch }] =
     useDisclosure(false);
+  const [
+    originSetupOpened,
+    { open: openOriginSetup, close: closeOriginSetup },
+  ] = useDisclosure(false);
+  const [originUrl, setOriginUrl] = useState('');
+  const [originSaving, setOriginSaving] = useState(false);
   const [checkoutTarget, setCheckoutTarget] = useState<{
     hash: string;
     hasBranchRef: boolean;
@@ -396,9 +406,10 @@ export const HistoryView: FunctionComponent<{
         const result = await mergeRef(repoPath, branch);
         if (result.hasConflicts) {
           notifications.show({
-            message: 'Merge conflicts detected. Please resolve in VSCode.',
+            message: 'Merge conflicts detected. Please resolve conflicts.',
             color: 'yellow',
           });
+          router.push(`/repos/${params.repoId}/changes`);
         } else if (!result.success) {
           notifications.show({ message: result.output, color: 'red' });
         } else {
@@ -418,7 +429,7 @@ export const HistoryView: FunctionComponent<{
         setActionLoading(false);
       }
     },
-    [repoPath, refreshStatus, refreshCommits],
+    [repoPath, refreshStatus, refreshCommits, router, params.repoId],
   );
 
   const handleReset = useCallback(
@@ -473,9 +484,10 @@ export const HistoryView: FunctionComponent<{
       const result = await pullAndMergeMain(repoPath);
       if (result.hasConflicts) {
         notifications.show({
-          message: 'Merge conflicts detected. Please resolve in VSCode.',
+          message: 'Merge conflicts detected. Please resolve conflicts.',
           color: 'yellow',
         });
+        router.push(`/repos/${params.repoId}/changes`);
       } else if (!result.success) {
         notifications.show({ message: result.output, color: 'red' });
       } else {
@@ -494,9 +506,9 @@ export const HistoryView: FunctionComponent<{
     } finally {
       setActionLoading(false);
     }
-  }, [repoPath, refreshStatus, refreshCommits]);
+  }, [repoPath, refreshStatus, refreshCommits, router, params.repoId]);
 
-  const handlePush = useCallback(async () => {
+  const executePush = useCallback(async () => {
     setActionLoading(true);
     try {
       await pushChanges(repoPath, !status?.upstream);
@@ -519,6 +531,35 @@ export const HistoryView: FunctionComponent<{
     refreshStatus,
     refreshCommits,
   ]);
+
+  const handlePush = useCallback(async () => {
+    try {
+      await getRemoteUrl(repoPath, 'origin');
+      await executePush();
+    } catch {
+      setOriginUrl('');
+      openOriginSetup();
+    }
+  }, [repoPath, executePush, openOriginSetup]);
+
+  const handleAddOriginAndPush = useCallback(async () => {
+    if (!originUrl.trim()) return;
+    setOriginSaving(true);
+    try {
+      await addRemote(repoPath, 'origin', originUrl.trim());
+      closeOriginSetup();
+      await executePush();
+    } catch {
+      notifications.show({
+        title: 'origin の追加に失敗しました',
+        message:
+          'URL を確認してください。すでに origin が存在する可能性があります。',
+        color: 'red',
+      });
+    } finally {
+      setOriginSaving(false);
+    }
+  }, [repoPath, originUrl, closeOriginSetup, executePush]);
 
   const handleMultiSelectToggle = useCallback((checked: boolean) => {
     setMultiSelectMode(checked);
@@ -1351,6 +1392,38 @@ export const HistoryView: FunctionComponent<{
         onClose={() => setCheckoutTarget(null)}
         onCheckout={handlePostCheckout}
       />
+
+      <Modal
+        opened={originSetupOpened}
+        onClose={closeOriginSetup}
+        title="origin リモートの追加"
+      >
+        <Stack>
+          <Text size="sm">
+            remote &quot;origin&quot; が設定されていません。リモートリポジトリの
+            URL を入力してください。
+          </Text>
+          <TextInput
+            label="URL"
+            placeholder="https://github.com/user/repo.git"
+            value={originUrl}
+            onChange={(e) => setOriginUrl(e.currentTarget.value)}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeOriginSetup}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddOriginAndPush}
+              loading={originSaving}
+              disabled={!originUrl.trim()}
+            >
+              追加して Push
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {headIndex >= 0 && !headVisible && (
         <Tooltip label="Go to HEAD" position="left">

@@ -50,9 +50,11 @@ import {
   commitChanges,
   setSetting,
   getRemoteUrl,
+  addRemote,
   setGitConfig,
   suggestCommitMessage,
   suggestBranchName,
+  getMergeMsg,
   IdentityUnknownError,
 } from '@/lib/api';
 import { AiSuggestButton } from '@/components/ai-suggest-button';
@@ -156,6 +158,15 @@ export const ChangesView: FunctionComponent<{
   ] = useDisclosure(false);
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
   const [pushBranchName, setPushBranchName] = useState('');
+  const [
+    originSetupOpened,
+    { open: openOriginSetup, close: closeOriginSetup },
+  ] = useDisclosure(false);
+  const [originUrl, setOriginUrl] = useState('');
+  const [originSaving, setOriginSaving] = useState(false);
+  const [pendingPushAction, setPendingPushAction] = useState<
+    (() => void) | null
+  >(null);
   const [identityOpened, { open: openIdentity, close: closeIdentity }] =
     useDisclosure(false);
   const [identityName, setIdentityName] = useState('');
@@ -239,6 +250,21 @@ export const ChangesView: FunctionComponent<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh diff when status updates from polling
   }, [status]);
+
+  // Pre-fill commit message from MERGE_MSG when conflicts are detected
+  useEffect(() => {
+    if (!status.hasConflicts) return;
+    if (commitMsg !== '') return;
+    let cancelled = false;
+    void getMergeMsg(repoPath).then((msg) => {
+      if (cancelled || msg === null) return;
+      setCommitMsg(msg);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when hasConflicts changes
+  }, [status.hasConflicts, repoPath]);
 
   const handleFileClick = useCallback(
     (file: FileEntry, globalIndex: number) => {
@@ -442,15 +468,35 @@ export const ChangesView: FunctionComponent<{
     handleIdentityError,
   ]);
 
-  const showNoOriginError = useCallback(() => {
-    notifications.show({
-      title: 'Push できません',
-      message:
-        'remote "origin" が設定されていません。push するにはリモートを追加してください。',
-      color: 'red',
-      style: { marginBottom: 80 },
-    });
-  }, []);
+  const showOriginSetup = useCallback(
+    (onComplete: () => void) => {
+      setOriginUrl('');
+      setPendingPushAction(() => onComplete);
+      openOriginSetup();
+    },
+    [openOriginSetup],
+  );
+
+  const handleAddOrigin = useCallback(async () => {
+    if (!originUrl.trim()) return;
+    setOriginSaving(true);
+    try {
+      await addRemote(repoPath, 'origin', originUrl.trim());
+      setRemoteUrl(originUrl.trim());
+      closeOriginSetup();
+      pendingPushAction?.();
+    } catch {
+      notifications.show({
+        title: 'origin の追加に失敗しました',
+        message:
+          'URL を確認してください。すでに origin が存在する可能性があります。',
+        color: 'red',
+        style: { marginBottom: 80 },
+      });
+    } finally {
+      setOriginSaving(false);
+    }
+  }, [repoPath, originUrl, closeOriginSetup, pendingPushAction]);
 
   const handleSuggestCommitMessage = useCallback(async () => {
     if (status.stagedFiles.length === 0) return;
@@ -505,7 +551,7 @@ export const ChangesView: FunctionComponent<{
       setPushBranchName('');
       const ok = await fetchRemoteUrlInfo();
       if (!ok) {
-        showNoOriginError();
+        showOriginSetup(() => openPushConfirm());
         return;
       }
       openPushConfirm();
@@ -516,7 +562,7 @@ export const ChangesView: FunctionComponent<{
     commitMsg,
     autoPush,
     fetchRemoteUrlInfo,
-    showNoOriginError,
+    showOriginSetup,
     openPushConfirm,
     handleCommitDirect,
   ]);
@@ -526,12 +572,12 @@ export const ChangesView: FunctionComponent<{
     if (autoPush) {
       const ok = await fetchRemoteUrlInfo();
       if (!ok) {
-        showNoOriginError();
+        showOriginSetup(() => openNewBranch());
         return;
       }
     }
     openNewBranch();
-  }, [autoPush, fetchRemoteUrlInfo, showNoOriginError, openNewBranch]);
+  }, [autoPush, fetchRemoteUrlInfo, showOriginSetup, openNewBranch]);
 
   const handleCommitToNewBranch = useCallback(async () => {
     if (!commitMsg.trim() || !newBranchName.trim()) return;
@@ -1228,6 +1274,38 @@ export const ChangesView: FunctionComponent<{
             </Button>
             <Button onClick={handleCommitAndPush} loading={committing}>
               Commit & Push
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={originSetupOpened}
+        onClose={closeOriginSetup}
+        title="origin リモートの追加"
+      >
+        <Stack>
+          <Text size="sm">
+            remote &quot;origin&quot; が設定されていません。リモートリポジトリの
+            URL を入力してください。
+          </Text>
+          <TextInput
+            label="URL"
+            placeholder="https://github.com/user/repo.git"
+            value={originUrl}
+            onChange={(e) => setOriginUrl(e.currentTarget.value)}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeOriginSetup}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddOrigin}
+              loading={originSaving}
+              disabled={!originUrl.trim()}
+            >
+              追加して続行
             </Button>
           </Group>
         </Stack>
