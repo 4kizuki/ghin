@@ -49,6 +49,7 @@ import {
   IconArrowBackUp,
   IconClock,
   IconX,
+  IconBrandVscode,
 } from '@tabler/icons-react';
 import { DateTimePicker } from '@mantine/dates';
 import {
@@ -63,6 +64,7 @@ import {
   getLog,
   getCommitDiff,
   pullAndMergeMain,
+  pullCurrentBranch,
   pushChanges,
   addRemote,
   getRemoteUrl,
@@ -72,6 +74,7 @@ import {
   mergeRef,
   resetToCommit,
   distributeCommitDates,
+  openInEditor,
 } from '@/lib/api';
 import { DiffViewer, isDiffFontSize } from '@/components/diff-viewer';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
@@ -508,6 +511,38 @@ export const HistoryView: FunctionComponent<{
     }
   }, [repoPath, refreshStatus, refreshCommits, router, params.repoId]);
 
+  const handlePull = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const result = await pullCurrentBranch(repoPath);
+      if (!result.success) {
+        notifications.show({ message: result.output, color: 'red' });
+      } else {
+        notifications.show({ message: 'Pull successful', color: 'green' });
+      }
+      await refreshStatus();
+      await refreshCommits();
+    } catch (e) {
+      notifications.show({
+        message: e instanceof Error ? e.message : 'Pull failed',
+        color: 'red',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [repoPath, refreshStatus, refreshCommits]);
+
+  const handleOpenInEditor = useCallback(async () => {
+    try {
+      await openInEditor(repoPath);
+    } catch (e) {
+      notifications.show({
+        message: e instanceof Error ? e.message : 'Failed to open editor',
+        color: 'red',
+      });
+    }
+  }, [repoPath]);
+
   const executePush = useCallback(async () => {
     setActionLoading(true);
     try {
@@ -921,6 +956,15 @@ export const HistoryView: FunctionComponent<{
               <Button
                 size="xs"
                 variant="light"
+                leftSection={<IconDownload size={14} />}
+                onClick={handlePull}
+                loading={actionLoading}
+              >
+                Pull
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
                 leftSection={<IconGitMerge size={14} />}
                 onClick={handlePullMerge}
                 loading={actionLoading}
@@ -936,6 +980,14 @@ export const HistoryView: FunctionComponent<{
                 loading={actionLoading}
               >
                 Push
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconBrandVscode size={14} />}
+                onClick={handleOpenInEditor}
+              >
+                VSCode
               </Button>
             </>
           )}

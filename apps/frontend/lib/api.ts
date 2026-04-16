@@ -355,6 +355,22 @@ export const pushChanges = (
     body: JSON.stringify({ repo, setUpstream, remoteBranch }),
   });
 
+// ─── Pull ───────────────────────────────────────────────────────────
+
+const pullResultSchema = z.object({
+  success: z.boolean(),
+  output: z.string(),
+});
+
+export const pullCurrentBranch = (
+  repo: string,
+): Promise<{ success: boolean; output: string }> =>
+  fetchJson('/api/git/pull', pullResultSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  });
+
 // ─── Pull & Merge ───────────────────────────────────────────────────
 
 export const pullAndMergeMain = (
@@ -584,6 +600,20 @@ export const setGitConfig = (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, key, value }),
   });
+
+// ─── Open in Editor ─────────────────────────────────────────────────
+
+export const openInEditor = async (repo: string): Promise<void> => {
+  const res = await fetch('/api/open-editor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to open editor: ${body}`);
+  }
+};
 
 // ─── AI Suggestions ─────────────────────────────────────────────────
 

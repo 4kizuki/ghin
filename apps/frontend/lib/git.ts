@@ -564,6 +564,10 @@ const pull = async (
   return exec(['pull', remote, branch], cwd);
 };
 
+const pullCurrentBranch = async (cwd: string): Promise<string> => {
+  return exec(['pull'], cwd);
+};
+
 const merge = async (
   cwd: string,
   ref: string,
@@ -1009,6 +1013,17 @@ const distributeCommitDates = async (
   }
 };
 
+const openInEditor = (cwd: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile('code', [cwd], (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr || error.message));
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+
 const getMergeMsg = async (cwd: string): Promise<string | null> => {
   try {
     const msg = await readFile(join(cwd, '.git', 'MERGE_MSG'), 'utf-8');
@@ -1033,6 +1048,7 @@ export const git = {
   commit,
   push,
   pull,
+  pullCurrentBranch,
   merge,
   mergeMain,
   pullAndMergeMain,
@@ -1061,4 +1077,5 @@ export const git = {
   distributeCommitDates,
   addRemote,
   getMergeMsg,
+  openInEditor,
 };
