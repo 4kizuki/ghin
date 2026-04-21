@@ -22,7 +22,7 @@
     "onlyBuiltDependencies": ["@prisma/engines", "better-sqlite3", "prisma"]
   },
   "devDependencies": {
-    "prettier": "3.8.1",
-    "turbo": "2.9.0"
+    "prettier": "3.8.2",
+    "turbo": "2.9.6"
   }
 }
