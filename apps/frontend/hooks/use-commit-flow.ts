@@ -312,9 +312,13 @@ export const useCommitFlow = ({
           staged: f.staged,
         })),
       );
+      const dangerPrefix =
+        suggestion.dangerFiles.length > 0
+          ? `⚠️ INCLUDED DANGER FILES: ${suggestion.dangerFiles.join(', ')}\n\n`
+          : '';
       const message = suggestion.body
-        ? `${suggestion.subject}\n\n${suggestion.body}`
-        : suggestion.subject;
+        ? `${dangerPrefix}${suggestion.subject}\n\n${suggestion.body}`
+        : `${dangerPrefix}${suggestion.subject}`;
       setCommitMsg(message);
     } catch {
       notifications.show({

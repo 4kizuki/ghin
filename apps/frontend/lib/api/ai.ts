@@ -4,6 +4,7 @@ import { fetchJson } from './fetch';
 const commitMessageSuggestionSchema = z.object({
   subject: z.string(),
   body: z.string(),
+  dangerFiles: z.array(z.string()),
 });
 
 const branchNameSuggestionSchema = z.object({

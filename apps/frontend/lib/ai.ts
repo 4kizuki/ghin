@@ -10,6 +10,7 @@ import type { FileDiff } from '@/lib/git';
 const commitMessageSchema = z.object({
   subject: z.string(),
   body: z.string(),
+  dangerFiles: z.array(z.string()),
 });
 
 const branchNameSchema = z.object({
@@ -92,6 +93,13 @@ Rules:
 - If body is present, separate from subject with a blank line
 - BREAKING CHANGE: add "!" after type/scope if breaking, and explain in body
 - If recent commit messages show a consistent pattern (language, scope style, prefix conventions), follow that pattern
+
+Security check:
+- dangerFiles: list file paths from staged files that may contain secrets or sensitive data
+- Patterns to flag: .env files (except .env.example), private keys, credentials, tokens, passwords, API keys, certificates, keystores, cloud config with secrets
+- Check BOTH file names/extensions AND diff content for hardcoded secrets (e.g. password=, api_key=, secret=, token=, AWS_SECRET, PRIVATE KEY)
+- If no dangerous files found, return an empty array
+
 - Respond with ONLY valid JSON matching the output schema
 
 Branch: ${branch}
