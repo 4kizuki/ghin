@@ -17,6 +17,7 @@ export {
   getBranchesContaining,
   createBranch,
   checkoutRef,
+  checkoutAndPull,
   updateBranchToRemote,
   getMergedBranches,
   deleteMergedBranches,

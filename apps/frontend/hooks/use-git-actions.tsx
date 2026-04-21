@@ -14,6 +14,7 @@ import {
   mergeRef,
   resetToCommit,
   openInEditor,
+  checkoutAndPull,
 } from '@/lib/api';
 
 export const useGitActions = ({
@@ -236,6 +237,40 @@ export const useGitActions = ({
     }
   }, [repoPath, originUrl, closeOriginSetup, executePush]);
 
+  const handleCheckoutAndPull = useCallback(
+    async (remoteBranch: string) => {
+      const localBranch = remoteBranch.replace(/^origin\//, '');
+      setActionLoading(true);
+      try {
+        const result = await checkoutAndPull(repoPath, remoteBranch);
+        if (result.hasConflicts) {
+          notifications.show({
+            message: 'Merge conflicts detected. Please resolve conflicts.',
+            color: 'yellow',
+          });
+          navigateToChanges();
+        } else if (!result.success) {
+          notifications.show({ message: result.output, color: 'red' });
+        } else {
+          notifications.show({
+            message: `Checked out ${localBranch} and pulled successfully`,
+            color: 'green',
+          });
+        }
+        await refreshStatus();
+        await refreshCommits();
+      } catch (e) {
+        notifications.show({
+          message: e instanceof Error ? e.message : 'Checkout & pull failed',
+          color: 'red',
+        });
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [repoPath, refreshStatus, refreshCommits, navigateToChanges],
+  );
+
   const handleCommitDoubleClick = useCallback((commit: CommitInfo) => {
     const hasBranchRef = commit.refs.some((ref) => !ref.startsWith('tag: '));
     setCheckoutTarget({
@@ -261,6 +296,7 @@ export const useGitActions = ({
     checkoutTarget,
     setCheckoutTarget,
     handleMergeBranch,
+    handleCheckoutAndPull,
     handleReset,
     handlePullMerge,
     handlePull,

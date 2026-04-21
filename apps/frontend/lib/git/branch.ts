@@ -125,6 +125,35 @@ export const getMergedBranches = async (cwd: string): Promise<string[]> => {
   }
 };
 
+export const checkoutAndPull = async (
+  cwd: string,
+  remoteBranch: string,
+): Promise<{ success: boolean; output: string; hasConflicts: boolean }> => {
+  const localBranch = remoteBranch.replace(/^origin\//, '');
+
+  try {
+    await exec(['checkout', localBranch], cwd);
+  } catch (e) {
+    return {
+      success: false,
+      output: e instanceof Error ? e.message : 'Checkout failed',
+      hasConflicts: false,
+    };
+  }
+
+  try {
+    const output = await exec(['pull'], cwd);
+    return { success: true, output, hasConflicts: false };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Pull failed';
+    return {
+      success: false,
+      output: msg,
+      hasConflicts: msg.includes('CONFLICT'),
+    };
+  }
+};
+
 export const deleteBranches = async (
   cwd: string,
   branches: string[],

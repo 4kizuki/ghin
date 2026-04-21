@@ -4,6 +4,7 @@ import {
   branchInfoSchema,
   branchesContainingResponseSchema,
   branchesResponseSchema,
+  mergeResultSchema,
   okOutputSchema,
 } from './schemas';
 import { fetchJson } from './fetch';
@@ -58,6 +59,16 @@ export const checkoutRef = (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo, ref }),
+  });
+
+export const checkoutAndPull = (
+  repo: string,
+  remoteBranch: string,
+): Promise<{ success: boolean; output: string; hasConflicts: boolean }> =>
+  fetchJson('/api/git/checkout-and-pull', mergeResultSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, remoteBranch }),
   });
 
 export const getMergedBranches = (

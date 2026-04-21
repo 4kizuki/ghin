@@ -2,6 +2,7 @@ import type { FunctionComponent } from 'react';
 import { Box, Menu } from '@mantine/core';
 import {
   IconGitMerge,
+  IconGitBranch,
   IconAlertTriangle,
   IconArrowBackUp,
 } from '@tabler/icons-react';
@@ -12,12 +13,16 @@ const extractBranchRefs = (refs: string[]): string[] =>
     .filter((r) => !r.startsWith('tag: ') && r !== 'HEAD')
     .map((r) => r.replace(/^HEAD -> /, ''));
 
+const extractRemoteBranchRefs = (refs: string[]): string[] =>
+  extractBranchRefs(refs).filter((r) => r.startsWith('origin/'));
+
 export const CommitContextMenu: FunctionComponent<{
   contextMenu: { x: number; y: number; commit: CommitInfo } | null;
   onClose: () => void;
   onMergeBranch: (branch: string) => void;
+  onCheckoutAndPull: (remoteBranch: string) => void;
   onReset: (mode: 'hard' | 'mixed' | 'soft', commit: CommitInfo) => void;
-}> = ({ contextMenu, onClose, onMergeBranch, onReset }) => (
+}> = ({ contextMenu, onClose, onMergeBranch, onCheckoutAndPull, onReset }) => (
   <Menu
     opened={contextMenu !== null}
     onChange={(opened) => {
@@ -54,6 +59,22 @@ export const CommitContextMenu: FunctionComponent<{
           <Menu.Divider />
         </>
       )}
+      {contextMenu &&
+        extractRemoteBranchRefs(contextMenu.commit.refs).length > 0 && (
+          <>
+            <Menu.Label>Checkout & Pull</Menu.Label>
+            {extractRemoteBranchRefs(contextMenu.commit.refs).map((branch) => (
+              <Menu.Item
+                key={`checkout-${branch}`}
+                leftSection={<IconGitBranch size={14} />}
+                onClick={() => onCheckoutAndPull(branch)}
+              >
+                Checkout {branch.replace(/^origin\//, '')} & pull
+              </Menu.Item>
+            ))}
+            <Menu.Divider />
+          </>
+        )}
       <Menu.Label>Reset</Menu.Label>
       <Menu.Item
         color="red"

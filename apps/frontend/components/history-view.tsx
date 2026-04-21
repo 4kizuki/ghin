@@ -286,6 +286,10 @@ export const HistoryView: FunctionComponent<{
           setContextMenu(null);
           gitActions.handleMergeBranch(branch);
         }}
+        onCheckoutAndPull={(remoteBranch) => {
+          setContextMenu(null);
+          gitActions.handleCheckoutAndPull(remoteBranch);
+        }}
         onReset={(mode, commit) => {
           setContextMenu(null);
           gitActions.handleReset(mode, commit);

@@ -2,9 +2,9 @@
 
 import type { FunctionComponent } from 'react';
 import { Group, Loader } from '@mantine/core';
+import { useEffect } from 'react';
 import { useRepoStatus } from '@/contexts/repo-status-context';
 import { ChangesView } from '@/components/changes-view';
-import { usePolling } from '@/hooks/use-polling';
 
 export const ChangesPageClient: FunctionComponent<{
   initialAutoPush: boolean;
@@ -19,7 +19,21 @@ export const ChangesPageClient: FunctionComponent<{
 }) => {
   const { repoPath, status, refreshStatus } = useRepoStatus();
 
-  usePolling(refreshStatus, 5_000, true, 120_000);
+  useEffect(() => {
+    const onVisible = (): void => {
+      if (!document.hidden) {
+        refreshStatus();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [refreshStatus]);
 
   if (!status) {
     return (
