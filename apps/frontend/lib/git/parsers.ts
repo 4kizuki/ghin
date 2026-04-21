@@ -1,12 +1,66 @@
 import type { FileChange, Hunk, FileDiff, CommitInfo } from './types';
 
+/**
+ * Git の C スタイルクオートされたパスをデコードする。
+ * `core.quotePath=true` 時に非 ASCII 文字が `"\343\201\202"` のように
+ * 8進エスケープされるのを UTF-8 に復元する。
+ * クオートされていないパスはそのまま返す。
+ */
+export const unquoteGitPath = (raw: string): string => {
+  if (!raw.startsWith('"') || !raw.endsWith('"')) return raw;
+
+  const inner = raw.slice(1, -1);
+  const bytes: number[] = [];
+  let i = 0;
+
+  while (i < inner.length) {
+    if (inner[i] === '\\' && i + 1 < inner.length) {
+      const next = inner[i + 1];
+
+      // 8進エスケープ: \NNN (3桁)
+      if (next >= '0' && next <= '3' && i + 3 < inner.length) {
+        const octal = inner.slice(i + 1, i + 4);
+        if (/^[0-3][0-7]{2}$/.test(octal)) {
+          bytes.push(parseInt(octal, 8));
+          i += 4;
+          continue;
+        }
+      }
+
+      // C スタイルエスケープ
+      const escapeMap: Record<string, number> = {
+        '\\': 0x5c,
+        '"': 0x22,
+        n: 0x0a,
+        t: 0x09,
+        a: 0x07,
+        b: 0x08,
+        f: 0x0c,
+        r: 0x0d,
+        v: 0x0b,
+      };
+      const mapped = escapeMap[next];
+      if (mapped !== undefined) {
+        bytes.push(mapped);
+        i += 2;
+        continue;
+      }
+    }
+
+    bytes.push(inner.charCodeAt(i));
+    i++;
+  }
+
+  return new TextDecoder().decode(new Uint8Array(bytes));
+};
+
 export const parseStatusLine = (
   line: string,
 ): { staged: FileChange | null; unstaged: FileChange | null } | null => {
   if (line.length < 4) return null;
   const x = line[0];
   const y = line[1];
-  const filePath = line.slice(3);
+  const filePath = unquoteGitPath(line.slice(3));
 
   let staged: FileChange | null = null;
   let unstaged: FileChange | null = null;
@@ -78,11 +132,17 @@ export const parseDiff = (diffOutput: string): FileDiff[] => {
   for (const section of fileSections) {
     const lines = section.split('\n');
     const headerLine = lines[0];
-    const pathMatch = headerLine.match(/a\/(.*) b\/(.*)/);
+    const quotedMatch = headerLine.match(/^"a\/(.*)" "b\/(.*)"$/);
+    const unquotedMatch = headerLine.match(/^a\/(.*) b\/(.*)$/);
+    const pathMatch = quotedMatch ?? unquotedMatch;
     if (!pathMatch) continue;
 
-    const oldPath = pathMatch[1];
-    const newPath = pathMatch[2];
+    const oldPath = quotedMatch
+      ? unquoteGitPath(`"${pathMatch[1]}"`)
+      : pathMatch[1];
+    const newPath = quotedMatch
+      ? unquoteGitPath(`"${pathMatch[2]}"`)
+      : pathMatch[2];
     const isNew = section.includes('new file mode');
     const isDeleted = section.includes('deleted file mode');
     const isBinary = section.includes('Binary files');

@@ -13,7 +13,7 @@ export const exec = (
 
     const child = execFile(
       'git',
-      args,
+      ['-c', 'core.quotePath=false', ...args],
       { cwd, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
