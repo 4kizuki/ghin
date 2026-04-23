@@ -55,6 +55,7 @@ import { reset, revertCommit } from './reset';
 import {
   cloneRepository,
   openInEditor,
+  openInTerminal,
   isWorkingTreeClean,
   distributeCommitDates,
 } from './repo';
@@ -105,4 +106,5 @@ export const git = {
   addRemote,
   getMergeMsg,
   openInEditor,
+  openInTerminal,
 };

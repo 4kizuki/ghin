@@ -43,5 +43,9 @@ export {
 export { resetToCommit, revertCommit } from './reset';
 export { searchGit } from './search';
 export { getSettings, setSetting, setGitConfig } from './settings';
-export { distributeCommitDates, openInEditor } from './advanced';
+export {
+  distributeCommitDates,
+  openInEditor,
+  openInTerminal,
+} from './advanced';
 export { suggestCommitMessage, suggestBranchName } from './ai';

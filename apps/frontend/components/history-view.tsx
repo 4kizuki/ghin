@@ -233,6 +233,7 @@ export const HistoryView: FunctionComponent<{
         onPullMerge={gitActions.handlePullMerge}
         onPush={gitActions.handlePush}
         onOpenInEditor={gitActions.handleOpenInEditor}
+        onOpenInTerminal={gitActions.handleOpenInTerminal}
       />
 
       <Group px="sm" py={6}>

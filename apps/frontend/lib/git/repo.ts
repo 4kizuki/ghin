@@ -32,6 +32,17 @@ export const openInEditor = (cwd: string): Promise<string> =>
     });
   });
 
+export const openInTerminal = (cwd: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile('open', ['-a', 'Terminal', cwd], (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr || error.message));
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+
 export const isWorkingTreeClean = async (cwd: string): Promise<boolean> => {
   const output = await exec(['status', '--porcelain'], cwd);
   return output.trim() === '';

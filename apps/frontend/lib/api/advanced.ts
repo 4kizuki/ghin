@@ -28,3 +28,15 @@ export const openInEditor = async (repo: string): Promise<void> => {
     throw new Error(`Failed to open editor: ${body}`);
   }
 };
+
+export const openInTerminal = async (repo: string): Promise<void> => {
+  const res = await fetch('/api/open-terminal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to open terminal: ${body}`);
+  }
+};

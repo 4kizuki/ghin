@@ -27,6 +27,7 @@ import {
   IconUpload,
   IconX,
   IconBrandVscode,
+  IconTerminal2,
 } from '@tabler/icons-react';
 import type { RepoStatus } from '@/lib/git';
 
@@ -60,6 +61,7 @@ export const HistoryStatusBar: FunctionComponent<{
   onPullMerge: () => void;
   onPush: () => void;
   onOpenInEditor: () => void;
+  onOpenInTerminal: () => void;
 }> = ({
   status,
   totalChanges,
@@ -90,6 +92,7 @@ export const HistoryStatusBar: FunctionComponent<{
   onPullMerge,
   onPush,
   onOpenInEditor,
+  onOpenInTerminal,
 }) => (
   <Group
     px="md"
@@ -317,6 +320,14 @@ export const HistoryStatusBar: FunctionComponent<{
             onClick={onOpenInEditor}
           >
             VSCode
+          </Button>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconTerminal2 size={14} />}
+            onClick={onOpenInTerminal}
+          >
+            Terminal
           </Button>
         </>
       )}

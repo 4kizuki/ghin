@@ -14,6 +14,7 @@ import {
   mergeRef,
   resetToCommit,
   openInEditor,
+  openInTerminal,
   checkoutAndPull,
 } from '@/lib/api';
 
@@ -184,6 +185,17 @@ export const useGitActions = ({
     }
   }, [repoPath]);
 
+  const handleOpenInTerminal = useCallback(async () => {
+    try {
+      await openInTerminal(repoPath);
+    } catch (e) {
+      notifications.show({
+        message: e instanceof Error ? e.message : 'Failed to open terminal',
+        color: 'red',
+      });
+    }
+  }, [repoPath]);
+
   const executePush = useCallback(async () => {
     setActionLoading(true);
     try {
@@ -301,6 +313,7 @@ export const useGitActions = ({
     handlePullMerge,
     handlePull,
     handleOpenInEditor,
+    handleOpenInTerminal,
     handlePush,
     handleCommitDoubleClick,
     handlePostCheckout,
