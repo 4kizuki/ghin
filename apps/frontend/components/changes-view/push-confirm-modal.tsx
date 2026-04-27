@@ -20,6 +20,7 @@ export const PushConfirmModal: FunctionComponent<{
   onPushBranchNameChange: (name: string) => void;
   onConfirm: () => void;
   committing: boolean;
+  confirmLabel?: string;
 }> = ({
   opened,
   onClose,
@@ -30,6 +31,7 @@ export const PushConfirmModal: FunctionComponent<{
   onPushBranchNameChange,
   onConfirm,
   committing,
+  confirmLabel = 'Commit & Push',
 }) => (
   <Modal opened={opened} onClose={onClose} title="Push Confirmation">
     <Stack>
@@ -76,7 +78,7 @@ export const PushConfirmModal: FunctionComponent<{
           Cancel
         </Button>
         <Button onClick={onConfirm} loading={committing}>
-          Commit & Push
+          {confirmLabel}
         </Button>
       </Group>
     </Stack>

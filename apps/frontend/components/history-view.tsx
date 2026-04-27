@@ -34,6 +34,7 @@ import { CommitContextMenu } from '@/components/history-view/commit-context-menu
 import { DiffDrawer } from '@/components/history-view/diff-drawer';
 import { HistoryStatusBar } from '@/components/history-view/history-status-bar';
 import { OriginSetupModal } from '@/components/history-view/origin-setup-modal';
+import { PushConfirmModal } from '@/components/changes-view/push-confirm-modal';
 
 export type { DateDisplayFormat };
 
@@ -338,6 +339,19 @@ export const HistoryView: FunctionComponent<{
         onOriginUrlChange={gitActions.setOriginUrl}
         onSubmit={gitActions.handleAddOriginAndPush}
         saving={gitActions.originSaving}
+      />
+
+      <PushConfirmModal
+        opened={gitActions.pushConfirmOpened}
+        onClose={gitActions.closePushConfirm}
+        remoteUrl={gitActions.pushRemoteUrl}
+        upstream={status?.upstream}
+        branch={status?.branch ?? ''}
+        pushBranchName={gitActions.pushBranchName}
+        onPushBranchNameChange={gitActions.setPushBranchName}
+        onConfirm={gitActions.handlePushConfirm}
+        committing={gitActions.actionLoading}
+        confirmLabel="Push"
       />
 
       {headIndex >= 0 && !headVisible && (

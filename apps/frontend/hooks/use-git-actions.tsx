@@ -40,8 +40,14 @@ export const useGitActions = ({
     originSetupOpened,
     { open: openOriginSetup, close: closeOriginSetup },
   ] = useDisclosure(false);
+  const [
+    pushConfirmOpened,
+    { open: openPushConfirm, close: closePushConfirm },
+  ] = useDisclosure(false);
   const [originUrl, setOriginUrl] = useState('');
   const [originSaving, setOriginSaving] = useState(false);
+  const [pushRemoteUrl, setPushRemoteUrl] = useState<string | null>(null);
+  const [pushBranchName, setPushBranchName] = useState('');
   const [checkoutTarget, setCheckoutTarget] = useState<{
     hash: string;
     hasBranchRef: boolean;
@@ -222,13 +228,20 @@ export const useGitActions = ({
 
   const handlePush = useCallback(async () => {
     try {
-      await getRemoteUrl(repoPath, 'origin');
-      await executePush();
+      const result = await getRemoteUrl(repoPath, 'origin');
+      setPushRemoteUrl(result.url);
+      setPushBranchName('');
+      openPushConfirm();
     } catch {
       setOriginUrl('');
       openOriginSetup();
     }
-  }, [repoPath, executePush, openOriginSetup]);
+  }, [repoPath, openPushConfirm, openOriginSetup]);
+
+  const handlePushConfirm = useCallback(async () => {
+    closePushConfirm();
+    await executePush();
+  }, [closePushConfirm, executePush]);
 
   const handleAddOriginAndPush = useCallback(async () => {
     if (!originUrl.trim()) return;
@@ -315,6 +328,12 @@ export const useGitActions = ({
     handleOpenInEditor,
     handleOpenInTerminal,
     handlePush,
+    pushConfirmOpened,
+    closePushConfirm,
+    pushRemoteUrl,
+    pushBranchName,
+    setPushBranchName,
+    handlePushConfirm,
     handleCommitDoubleClick,
     handlePostCheckout,
   };
