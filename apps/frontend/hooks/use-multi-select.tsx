@@ -4,6 +4,7 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import type { CommitInfo } from '@/lib/git';
 import { distributeCommitDates } from '@/lib/api';
+import { formatLocalISOString } from '@/lib/date-format';
 
 export const useMultiSelect = ({
   commits,
@@ -100,7 +101,7 @@ export const useMultiSelect = ({
 
     const redistributed = sorted.map((c, i) => ({
       hash: c.hash,
-      newDate: new Date(randomTimes[i]).toISOString(),
+      newDate: formatLocalISOString(new Date(randomTimes[i])),
     }));
 
     modals.openConfirmModal({
