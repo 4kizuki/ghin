@@ -15,9 +15,9 @@ import {
   Tabs,
   Tooltip,
 } from '@mantine/core';
-import { IconSearch, IconGitBranch } from '@tabler/icons-react';
-import type { BranchInfo } from '@/lib/git';
-import { getBranches, checkoutRef, createBranch } from '@/lib/api';
+import { IconSearch, IconGitBranch, IconTag } from '@tabler/icons-react';
+import type { BranchInfo, TagInfo } from '@/lib/git';
+import { getBranches, getTags, checkoutRef, createBranch } from '@/lib/api';
 
 const remoteToLocalName = (branch: string): string =>
   branch.replace(/^origin\//, '');
@@ -29,6 +29,7 @@ export const BranchSwitcher: FunctionComponent<{
   onSwitch: () => Promise<void>;
 }> = ({ opened, onClose, repoPath, onSwitch }) => {
   const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [tags, setTags] = useState<TagInfo[]>([]);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,15 +38,20 @@ export const BranchSwitcher: FunctionComponent<{
   const [newBranchName, setNewBranchName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const loadBranches = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const b = await getBranches(repoPath);
+      const [b, t] = await Promise.all([
+        getBranches(repoPath),
+        getTags(repoPath),
+      ]);
       setBranches(b);
+      setTags(t);
     } catch (e) {
       setBranches([]);
-      setError(e instanceof Error ? e.message : 'Failed to load branches');
+      setTags([]);
+      setError(e instanceof Error ? e.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -53,7 +59,7 @@ export const BranchSwitcher: FunctionComponent<{
 
   useEffect(() => {
     if (opened) {
-      loadBranches();
+      loadData();
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setFilter('');
@@ -62,7 +68,7 @@ export const BranchSwitcher: FunctionComponent<{
       setNewBranchName('');
       setError(null);
     }
-  }, [opened, loadBranches]);
+  }, [opened, loadData]);
 
   const handleCheckout = useCallback(
     async (name: string) => {
@@ -95,6 +101,9 @@ export const BranchSwitcher: FunctionComponent<{
   );
   const localBranches = filtered.filter((b) => !b.name.startsWith('origin/'));
   const remoteBranches = filtered.filter((b) => b.name.startsWith('origin/'));
+  const filteredTags = tags.filter((t) =>
+    t.name.toLowerCase().includes(filter.toLowerCase()),
+  );
 
   return (
     <Drawer
@@ -142,6 +151,7 @@ export const BranchSwitcher: FunctionComponent<{
           <Tabs.List style={{ flex: '0 0 auto' }}>
             <Tabs.Tab value="local">Local</Tabs.Tab>
             <Tabs.Tab value="remote">Remote</Tabs.Tab>
+            <Tabs.Tab value="tags">Tags</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel
@@ -278,6 +288,38 @@ export const BranchSwitcher: FunctionComponent<{
                       </Group>
                     </Box>
                   )}
+                </Box>
+              ))
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel
+            value="tags"
+            style={{
+              flex: '1 1 0',
+              overflow: 'auto',
+              overscrollBehavior: 'none',
+            }}
+          >
+            {loading ? (
+              <Group justify="center" py="md">
+                <Loader size="sm" />
+              </Group>
+            ) : filteredTags.length === 0 ? (
+              <Text size="sm" c="dimmed" ta="center" py="md">
+                No tags
+              </Text>
+            ) : (
+              filteredTags.map((tag) => (
+                <Box key={tag.name} px="sm" py={6}>
+                  <Group gap="xs" wrap="nowrap">
+                    <IconTag size={14} style={{ flexShrink: 0 }} />
+                    <Tooltip label={tag.name} openDelay={500}>
+                      <Text size="sm" truncate style={{ minWidth: 0 }}>
+                        {tag.name}
+                      </Text>
+                    </Tooltip>
+                  </Group>
                 </Box>
               ))
             )}

@@ -8,6 +8,7 @@ export type {
   FileDiff,
   CommitInfo,
   BranchInfo,
+  TagInfo,
   RepoStatus,
   SearchResult,
 } from './types';
@@ -59,6 +60,7 @@ import {
   isWorkingTreeClean,
   distributeCommitDates,
 } from './repo';
+import { getTags } from './tag';
 
 export const git = {
   getStatus,
@@ -107,4 +109,5 @@ export const git = {
   getMergeMsg,
   openInEditor,
   openInTerminal,
+  getTags,
 };

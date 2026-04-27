@@ -50,6 +50,10 @@ type BranchInfo = {
   aheadBehind?: { ahead: number; behind: number };
 };
 
+type TagInfo = {
+  name: string;
+};
+
 type RepoStatus = {
   branch: string;
   upstream?: string;
@@ -76,6 +80,7 @@ export type {
   FileDiff,
   CommitInfo,
   BranchInfo,
+  TagInfo,
   RepoStatus,
   SearchResult,
 };

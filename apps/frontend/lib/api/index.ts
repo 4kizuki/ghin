@@ -41,6 +41,7 @@ export {
   updateAutoFetch,
 } from './remote';
 export { resetToCommit, revertCommit } from './reset';
+export { getTags } from './tag';
 export { searchGit } from './search';
 export { getSettings, setSetting, setGitConfig } from './settings';
 export {

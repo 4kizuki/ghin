@@ -62,6 +62,10 @@ export const commitInfoSchema = z.object({
   refs: z.array(z.string()),
 });
 
+export const tagInfoSchema = z.object({
+  name: z.string(),
+});
+
 export const branchInfoSchema = z.object({
   name: z.string(),
   current: z.boolean(),
