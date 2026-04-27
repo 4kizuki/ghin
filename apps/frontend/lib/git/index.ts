@@ -60,7 +60,7 @@ import {
   isWorkingTreeClean,
   distributeCommitDates,
 } from './repo';
-import { getTags } from './tag';
+import { getTags, deleteTag } from './tag';
 
 export const git = {
   getStatus,
@@ -110,4 +110,5 @@ export const git = {
   openInEditor,
   openInTerminal,
   getTags,
+  deleteTag,
 };

@@ -10,3 +10,6 @@ export const getTags = async (cwd: string): Promise<TagInfo[]> => {
     .filter(Boolean)
     .map((name) => ({ name }));
 };
+
+export const deleteTag = async (cwd: string, name: string): Promise<string> =>
+  exec(['tag', '-d', name], cwd);

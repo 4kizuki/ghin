@@ -3,8 +3,10 @@
 import type { FunctionComponent } from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
+  ActionIcon,
   Button,
   Drawer,
+  Modal,
   TextInput,
   Stack,
   Text,
@@ -15,9 +17,20 @@ import {
   Tabs,
   Tooltip,
 } from '@mantine/core';
-import { IconSearch, IconGitBranch, IconTag } from '@tabler/icons-react';
+import {
+  IconSearch,
+  IconGitBranch,
+  IconTag,
+  IconTrash,
+} from '@tabler/icons-react';
 import type { BranchInfo, TagInfo } from '@/lib/git';
-import { getBranches, getTags, checkoutRef, createBranch } from '@/lib/api';
+import {
+  getBranches,
+  getTags,
+  deleteTag,
+  checkoutRef,
+  createBranch,
+} from '@/lib/api';
 
 const remoteToLocalName = (branch: string): string =>
   branch.replace(/^origin\//, '');
@@ -36,6 +49,7 @@ export const BranchSwitcher: FunctionComponent<{
   const [tab, setTab] = useState<string | null>('local');
   const [creatingFrom, setCreatingFrom] = useState<string | null>(null);
   const [newBranchName, setNewBranchName] = useState('');
+  const [deletingTag, setDeletingTag] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
@@ -66,6 +80,7 @@ export const BranchSwitcher: FunctionComponent<{
       setTab('local');
       setCreatingFrom(null);
       setNewBranchName('');
+      setDeletingTag(null);
       setError(null);
     }
   }, [opened, loadData]);
@@ -82,6 +97,21 @@ export const BranchSwitcher: FunctionComponent<{
       }
     },
     [repoPath, onClose, onSwitch],
+  );
+
+  const handleDeleteTag = useCallback(
+    async (name: string) => {
+      setError(null);
+      try {
+        await deleteTag(repoPath, name);
+        setTags((prev) => prev.filter((t) => t.name !== name));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete tag');
+      } finally {
+        setDeletingTag(null);
+      }
+    },
+    [repoPath],
   );
 
   const handleCreateFromRemote = useCallback(async () => {
@@ -319,6 +349,17 @@ export const BranchSwitcher: FunctionComponent<{
                         {tag.name}
                       </Text>
                     </Tooltip>
+                    <Tooltip label="Delete tag">
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        onClick={() => setDeletingTag(tag.name)}
+                        style={{ flexShrink: 0 }}
+                      >
+                        <IconTrash size={12} />
+                      </ActionIcon>
+                    </Tooltip>
                   </Group>
                 </Box>
               ))
@@ -326,6 +367,34 @@ export const BranchSwitcher: FunctionComponent<{
           </Tabs.Panel>
         </Tabs>
       </Stack>
+
+      <Modal
+        opened={deletingTag !== null}
+        onClose={() => setDeletingTag(null)}
+        title="Delete Tag"
+      >
+        <Stack>
+          <Text size="sm">
+            タグ <b>{deletingTag}</b> を削除しますか？
+          </Text>
+          <Text size="xs" c="red">
+            この操作は元に戻せません。
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setDeletingTag(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (deletingTag) handleDeleteTag(deletingTag);
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Drawer>
   );
 };

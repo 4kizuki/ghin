@@ -15,3 +15,18 @@ export const GET = async (request: Request): Promise<NextResponse> => {
   const tags = await git.getTags(parsed.data.repo);
   return NextResponse.json(tags);
 };
+
+const deleteBodySchema = z.object({
+  repo: z.string().min(1),
+  name: z.string().min(1),
+});
+
+export const DELETE = async (request: Request): Promise<NextResponse> => {
+  const body: unknown = await request.json();
+  const parsed = deleteBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
+  }
+  const output = await git.deleteTag(parsed.data.repo, parsed.data.name);
+  return NextResponse.json({ ok: true, output });
+};
