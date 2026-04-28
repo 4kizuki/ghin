@@ -14,9 +14,9 @@
   "dependencies": {
     "@repo/eslint-plugin-react-convention": "workspace:*",
     "@repo/eslint-plugin-typescript-convention": "workspace:*",
-    "@typescript-eslint/eslint-plugin": "8.57.2",
-    "@typescript-eslint/parser": "8.57.2",
-    "eslint-config-next": "16.2.1",
+    "@typescript-eslint/eslint-plugin": "8.59.0",
+    "@typescript-eslint/parser": "8.59.0",
+    "eslint-config-next": "16.2.4",
     "eslint-plugin-import": "2.32.0"
   },
   "devDependencies": {
