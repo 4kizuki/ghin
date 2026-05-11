@@ -20,6 +20,6 @@
     "@repo/config": "workspace:*",
     "eslint": "9.39.4",
     "typescript": "5.9.3",
-    "vitest": "3.2.1"
+    "vitest": "3.2.4"
   }
 }
