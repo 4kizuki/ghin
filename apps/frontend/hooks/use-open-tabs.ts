@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useSyncExternalStore } from 'react';
+import { setSetting } from '@/lib/api';
+import { OPEN_TAB_IDS_SETTING_KEY } from '@/lib/open-tabs-storage';
 
-const STORAGE_KEY = 'open-tab-ids';
-
+let store: string[] | null = null;
+let initialized = false;
 const listeners = new Set<() => void>();
 
 const notify = (): void => {
@@ -15,45 +17,19 @@ const subscribe = (cb: () => void): (() => void) => {
   return () => listeners.delete(cb);
 };
 
-let cachedRaw: string | null = null;
-let cachedResult: string[] | null = null;
-
-const readStore = (): string[] | null => {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === cachedRaw) return cachedResult;
-  cachedRaw = raw;
-  if (raw === null) {
-    cachedResult = null;
-    return null;
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      cachedResult = null;
-      return null;
-    }
-    if (!parsed.every((v): v is string => typeof v === 'string')) {
-      cachedResult = null;
-      return null;
-    }
-    cachedResult = parsed;
-    return parsed;
-  } catch {
-    cachedResult = null;
-    return null;
-  }
-};
-
-const getSnapshot = (): string[] | null => readStore();
-
-const getServerSnapshot = (): string[] | null => null;
+const getSnapshot = (): string[] | null => store;
+const getServerSnapshot = (): string[] | null => store;
 
 const writeStore = (ids: string[]): void => {
-  const raw = JSON.stringify(ids);
-  localStorage.setItem(STORAGE_KEY, raw);
-  cachedRaw = raw;
-  cachedResult = ids;
+  store = ids;
   notify();
+  void setSetting(OPEN_TAB_IDS_SETTING_KEY, JSON.stringify(ids));
+};
+
+export const initOpenTabStore = (initial: string[] | null): void => {
+  if (initialized) return;
+  initialized = true;
+  store = initial;
 };
 
 export const useOpenTabStore = (): string[] | null =>
@@ -65,14 +41,14 @@ export const useOpenTabActions = (): {
   setOpenTabs: (ids: string[]) => void;
 } => {
   const openTab = useCallback((id: string) => {
-    const current = readStore() ?? [];
+    const current = store ?? [];
     if (!current.includes(id)) {
       writeStore([...current, id]);
     }
   }, []);
 
   const closeTab = useCallback((id: string) => {
-    const current = readStore() ?? [];
+    const current = store ?? [];
     writeStore(current.filter((v) => v !== id));
   }, []);
 

@@ -50,18 +50,16 @@ export const AppShellView: FunctionComponent<{
   const rawOpenTabIds = useOpenTabStore();
   const { openTab, closeTab, setOpenTabs } = useOpenTabActions();
 
-  // null = localStorage 未初期化（初回起動 or SSR）→ 全リポジトリ表示
+  // null = 設定未保存（初回起動）→ 全リポジトリ表示
   const openTabIds = useMemo(() => {
     if (rawOpenTabIds === null) return allRepoIds;
     return rawOpenTabIds.filter((id) => allRepoIds.includes(id));
   }, [rawOpenTabIds, allRepoIds]);
 
-  // 初回起動時に全リポジトリを localStorage に保存
+  // 初回起動時に全リポジトリを保存
   useEffect(() => {
-    if (rawOpenTabIds === null && typeof window !== 'undefined') {
-      if (localStorage.getItem('open-tab-ids') === null) {
-        setOpenTabs(allRepoIds);
-      }
+    if (rawOpenTabIds === null) {
+      setOpenTabs(allRepoIds);
     }
   }, [rawOpenTabIds, allRepoIds, setOpenTabs]);
 
