@@ -21,6 +21,7 @@ export const DiscardConfirmModal: FunctionComponent<{
             await discard?.onConfirm();
             onClose();
           }}
+          data-autofocus
         >
           Discard
         </Button>

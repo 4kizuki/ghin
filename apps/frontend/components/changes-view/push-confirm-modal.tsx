@@ -77,7 +77,7 @@ export const PushConfirmModal: FunctionComponent<{
         <Button variant="default" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={onConfirm} loading={committing}>
+        <Button onClick={onConfirm} loading={committing} data-autofocus>
           {confirmLabel}
         </Button>
       </Group>

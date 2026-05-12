@@ -456,6 +456,7 @@ export const BranchSwitcher: FunctionComponent<{
               onClick={() => {
                 if (deletingTag) handleDeleteTag(deletingTag);
               }}
+              data-autofocus
             >
               Delete
             </Button>

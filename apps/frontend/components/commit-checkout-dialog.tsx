@@ -331,7 +331,11 @@ export const CommitCheckoutDialog: FunctionComponent<{
             <Text size="sm" c="dimmed">
               {`Update local ${remoteToLocalName(createFromRemote)} to match ${createFromRemote}.`}
             </Text>
-            <Button onClick={handleUpdateBranch} loading={checkoutLoading}>
+            <Button
+              onClick={handleUpdateBranch}
+              loading={checkoutLoading}
+              data-autofocus
+            >
               {`Update & Checkout ${remoteToLocalName(createFromRemote)}`}
             </Button>
             <TextInput

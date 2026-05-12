@@ -214,6 +214,7 @@ export const DirectoryPickerModal: FunctionComponent<{
           leftSection={<IconCheck size={16} />}
           onClick={handleSelect}
           style={{ flex: '0 0 auto' }}
+          data-autofocus
         >
           Select this directory
         </Button>

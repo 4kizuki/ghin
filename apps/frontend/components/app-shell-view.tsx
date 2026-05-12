@@ -110,7 +110,7 @@ export const AppShellView: FunctionComponent<{
           </Text>
         ),
         labels: { confirm: 'Remove', cancel: 'Cancel' },
-        confirmProps: { color: 'red' },
+        confirmProps: { color: 'red', 'data-autofocus': true },
         onConfirm: async () => {
           await removeRepository(id);
           closeTab(id);

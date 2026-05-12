@@ -104,7 +104,7 @@ export const useGitActions = ({
           </Text>
         ),
         labels: { confirm: `Reset (--${mode})`, cancel: 'Cancel' },
-        confirmProps: { color: 'red' },
+        confirmProps: { color: 'red', 'data-autofocus': true },
         onConfirm: async () => {
           setActionLoading(true);
           try {

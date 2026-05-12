@@ -138,7 +138,7 @@ export const useMultiSelect = ({
           </Stack>
         ),
         labels: { confirm: 'Distribute', cancel: 'Cancel' },
-        confirmProps: { color: 'red' },
+        confirmProps: { color: 'red', 'data-autofocus': true },
         onConfirm: async () => {
           setDistributeLoading(true);
           try {
@@ -199,7 +199,7 @@ export const useMultiSelect = ({
             </Stack>
           ),
           labels: { confirm: 'それでも続行', cancel: 'キャンセル' },
-          confirmProps: { color: 'red' },
+          confirmProps: { color: 'red', 'data-autofocus': true },
           onConfirm: openDistributeConfirm,
         });
         return;
@@ -218,7 +218,7 @@ export const useMultiSelect = ({
           </Stack>
         ),
         labels: { confirm: '続行', cancel: 'キャンセル' },
-        confirmProps: { color: 'orange' },
+        confirmProps: { color: 'orange', 'data-autofocus': true },
         onConfirm: openDistributeConfirm,
       });
       return;
