@@ -15,6 +15,7 @@ import {
 } from 'next/navigation';
 import type { CommitInfo } from '@/lib/git';
 import type { DateDisplayFormat } from '@/lib/date-format';
+import type { WorkingHours } from '@/lib/working-hours';
 import { ROW_HEIGHT } from '@/components/commit-graph';
 import { useDiffFontSize } from '@/hooks/use-diff-font-size';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcut';
@@ -44,12 +45,14 @@ export const HistoryView: FunctionComponent<{
   initialAutoFetch?: boolean;
   initialFetchRemotes?: string[];
   initialDateDisplayFormat?: DateDisplayFormat;
+  workingHours: WorkingHours;
 }> = ({
   repoPath,
   initialCommits,
   initialAutoFetch = false,
   initialFetchRemotes = [],
   initialDateDisplayFormat = 'relative',
+  workingHours,
 }) => {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -105,6 +108,7 @@ export const HistoryView: FunctionComponent<{
     repoPath,
     refreshCommits,
     refreshStatus,
+    workingHours,
   });
 
   const gitActions = useGitActions({
@@ -235,6 +239,7 @@ export const HistoryView: FunctionComponent<{
         onPush={gitActions.handlePush}
         onOpenInEditor={gitActions.handleOpenInEditor}
         onOpenInTerminal={gitActions.handleOpenInTerminal}
+        workingHours={workingHours}
       />
 
       <Group px="sm" py={6}>

@@ -5,17 +5,24 @@ import { notifications } from '@mantine/notifications';
 import type { CommitInfo } from '@/lib/git';
 import { distributeCommitDates, detectDependencyCommits } from '@/lib/api';
 import { formatLocalISOString } from '@/lib/date-format';
+import {
+  buildValidIntervals,
+  sampleRandomTimes,
+  type WorkingHours,
+} from '@/lib/working-hours';
 
 export const useMultiSelect = ({
   commits,
   repoPath,
   refreshCommits,
   refreshStatus,
+  workingHours,
 }: {
   commits: CommitInfo[];
   repoPath: string;
   refreshCommits: () => Promise<void>;
   refreshStatus: () => Promise<void>;
+  workingHours: WorkingHours;
 }) => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedHashes, setSelectedHashes] = useState<Set<string>>(new Set());
@@ -94,10 +101,18 @@ export const useMultiSelect = ({
     );
 
     const count = sorted.length;
-    const randomTimes = Array.from(
-      { length: count },
-      () => startMs + Math.random() * (endMs - startMs),
-    ).sort((a, b) => a - b);
+    const intervals = buildValidIntervals(startMs, endMs, workingHours);
+    if (intervals.length === 0) {
+      notifications.show({
+        message:
+          '指定範囲内に稼働時間がありません。Settings の Working Hours を確認するか、範囲を変更してください。',
+        color: 'red',
+      });
+      return;
+    }
+    const randomTimes = sampleRandomTimes(intervals, count).sort(
+      (a, b) => a - b,
+    );
 
     const redistributed = sorted.map((c, i) => ({
       hash: c.hash,
@@ -220,6 +235,7 @@ export const useMultiSelect = ({
     repoPath,
     refreshStatus,
     refreshCommits,
+    workingHours,
   ]);
 
   return {

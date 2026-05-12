@@ -16,6 +16,11 @@ import {
 import { IconFolder } from '@tabler/icons-react';
 import { setSetting } from '@/lib/api';
 import { DirectoryPickerModal } from '@/components/directory-picker-modal';
+import { WorkingHoursGridEditor } from '@/components/working-hours-grid';
+import {
+  stringifyWorkingHoursGrid,
+  type WorkingHoursGrid,
+} from '@/lib/working-hours';
 
 const MODEL_PRESETS = [
   { value: 'gpt-5.3-codex-spark', label: 'gpt-5.3-codex-spark' },
@@ -41,6 +46,8 @@ export const SettingsView: FunctionComponent<{
   initialDefaultAuthorEmail: string;
   initialDefaultCloneDir: string;
   initialDateDisplayFormat: string;
+  initialWorkingHoursEnabled: boolean;
+  initialWorkingHoursGrid: WorkingHoursGrid;
 }> = ({
   initialAiEnabled,
   initialAiProvider,
@@ -49,6 +56,8 @@ export const SettingsView: FunctionComponent<{
   initialDefaultAuthorEmail,
   initialDefaultCloneDir,
   initialDateDisplayFormat,
+  initialWorkingHoursEnabled,
+  initialWorkingHoursGrid,
 }) => {
   const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
   const [aiProvider, setAiProvider] = useState(initialAiProvider);
@@ -64,6 +73,12 @@ export const SettingsView: FunctionComponent<{
   const [cloneDirPickerOpened, setCloneDirPickerOpened] = useState(false);
   const [dateDisplayFormat, setDateDisplayFormat] = useState(
     initialDateDisplayFormat,
+  );
+  const [workingHoursEnabled, setWorkingHoursEnabled] = useState(
+    initialWorkingHoursEnabled,
+  );
+  const [workingHoursGrid, setWorkingHoursGrid] = useState<WorkingHoursGrid>(
+    initialWorkingHoursGrid,
   );
 
   const handleAiEnabledChange = useCallback((checked: boolean) => {
@@ -134,6 +149,16 @@ export const SettingsView: FunctionComponent<{
     if (!value) return;
     setDateDisplayFormat(value);
     setSetting('dateDisplayFormat', value);
+  }, []);
+
+  const handleWorkingHoursEnabledChange = useCallback((checked: boolean) => {
+    setWorkingHoursEnabled(checked);
+    setSetting('workingHoursEnabled', String(checked));
+  }, []);
+
+  const handleWorkingHoursGridChange = useCallback((grid: WorkingHoursGrid) => {
+    setWorkingHoursGrid(grid);
+    setSetting('workingHours', stringifyWorkingHoursGrid(grid));
   }, []);
 
   return (
@@ -265,6 +290,35 @@ export const SettingsView: FunctionComponent<{
         data={DATE_DISPLAY_OPTIONS}
         value={dateDisplayFormat}
         onChange={handleDateDisplayFormatChange}
+      />
+
+      <Divider />
+
+      <Text fw={600} size="lg">
+        Working Hours
+      </Text>
+
+      <Text size="xs" c="dimmed">
+        Distribute 実行時、コミット日時をこの稼働時間内に制限します。
+      </Text>
+
+      <Switch
+        label="Enable working hours constraint for Distribute"
+        checked={workingHoursEnabled}
+        onChange={(e) =>
+          handleWorkingHoursEnabledChange(e.currentTarget.checked)
+        }
+      />
+
+      <Text size="xs" c="dimmed">
+        セルをクリック / ドラッグで稼働時間帯を切り替えます。横軸 = 0〜23
+        時、縦軸 = 曜日。
+      </Text>
+
+      <WorkingHoursGridEditor
+        grid={workingHoursGrid}
+        disabled={!workingHoursEnabled}
+        onChange={handleWorkingHoursGridChange}
       />
     </Stack>
   );

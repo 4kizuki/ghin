@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Container, Title, Group } from '@mantine/core';
 import { prisma } from '@/lib/prisma';
 import { SettingsView } from '@/components/settings-view';
+import { parseWorkingHoursGrid } from '@/lib/working-hours';
 import { BackLink } from './back-link';
 
 export const metadata: Metadata = { title: 'Settings' };
@@ -22,6 +23,8 @@ const SettingsPage: FunctionComponent = async () => {
           'defaultAuthorEmail',
           'defaultCloneDir',
           'dateDisplayFormat',
+          'workingHoursEnabled',
+          'workingHours',
         ],
       },
     },
@@ -42,6 +45,10 @@ const SettingsPage: FunctionComponent = async () => {
         initialDefaultAuthorEmail={settings['defaultAuthorEmail'] ?? ''}
         initialDefaultCloneDir={settings['defaultCloneDir'] ?? ''}
         initialDateDisplayFormat={settings['dateDisplayFormat'] ?? 'relative'}
+        initialWorkingHoursEnabled={settings['workingHoursEnabled'] === 'true'}
+        initialWorkingHoursGrid={parseWorkingHoursGrid(
+          settings['workingHours'],
+        )}
       />
     </Container>
   );

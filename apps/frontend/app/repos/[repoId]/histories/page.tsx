@@ -6,6 +6,7 @@ import { git } from '@/lib/git';
 import { prisma } from '@/lib/prisma';
 import { HistoryView } from '@/components/history-view';
 import type { DateDisplayFormat } from '@/components/history-view';
+import { parseWorkingHoursGrid } from '@/lib/working-hours';
 import { getRepository } from '../get-repository';
 
 export const metadata: Metadata = { title: 'Histories' };
@@ -22,18 +23,28 @@ const Page: FunctionComponent<{
   const repo = await getRepository(repoId);
   if (!repo) notFound();
 
-  const [commits, dateDisplaySetting] = await Promise.all([
+  const [commits, settingRows] = await Promise.all([
     git.getLog(repo.path, 200),
-    prisma.setting.findUnique({ where: { key: 'dateDisplayFormat' } }),
+    prisma.setting.findMany({
+      where: {
+        key: {
+          in: ['dateDisplayFormat', 'workingHoursEnabled', 'workingHours'],
+        },
+      },
+    }),
   ]);
+  const settings = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
   const fetchRemotes =
     repo.fetchRemotes === ''
       ? []
       : remotesSchema.parse(JSON.parse(repo.fetchRemotes));
+  const rawDateDisplay = settings['dateDisplayFormat'];
   const dateDisplayFormat =
-    dateDisplaySetting && isDateDisplayFormat(dateDisplaySetting.value)
-      ? dateDisplaySetting.value
+    rawDateDisplay && isDateDisplayFormat(rawDateDisplay)
+      ? rawDateDisplay
       : 'relative';
+  const workingHoursEnabled = settings['workingHoursEnabled'] === 'true';
+  const workingHoursGrid = parseWorkingHoursGrid(settings['workingHours']);
 
   return (
     <HistoryView
@@ -42,6 +53,7 @@ const Page: FunctionComponent<{
       initialAutoFetch={repo.autoFetch}
       initialFetchRemotes={fetchRemotes}
       initialDateDisplayFormat={dateDisplayFormat}
+      workingHours={{ enabled: workingHoursEnabled, grid: workingHoursGrid }}
     />
   );
 };
