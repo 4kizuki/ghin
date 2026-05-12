@@ -1,5 +1,9 @@
 export type { Repository } from './schemas';
-export type { CommitMessageSuggestion, BranchNameSuggestion } from './ai';
+export type {
+  CommitMessageSuggestion,
+  BranchNameSuggestion,
+  DependencyDetection,
+} from './ai';
 
 export { IdentityUnknownError } from './errors';
 
@@ -50,4 +54,8 @@ export {
   openInEditor,
   openInTerminal,
 } from './advanced';
-export { suggestCommitMessage, suggestBranchName } from './ai';
+export {
+  suggestCommitMessage,
+  suggestBranchName,
+  detectDependencyCommits,
+} from './ai';

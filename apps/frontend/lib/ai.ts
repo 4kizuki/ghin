@@ -17,10 +17,24 @@ const branchNameSchema = z.object({
   branchName: z.string(),
 });
 
+const dependencyDetectionSchema = z.object({
+  flagged: z.array(
+    z.object({
+      hash: z.string(),
+      reason: z.string(),
+    }),
+  ),
+});
+
 type CommitMessageSuggestion = z.infer<typeof commitMessageSchema>;
 type BranchNameSuggestion = z.infer<typeof branchNameSchema>;
+type DependencyDetection = z.infer<typeof dependencyDetectionSchema>;
 
-export type { CommitMessageSuggestion, BranchNameSuggestion };
+export type {
+  CommitMessageSuggestion,
+  BranchNameSuggestion,
+  DependencyDetection,
+};
 
 // ─── Diff Formatting ────────────────────────────────────────────────
 
@@ -63,6 +77,65 @@ const formatDiffForPrompt = (diffs: readonly FileDiff[]): string => {
   }
 
   return lines.join('\n');
+};
+
+const MAX_TOTAL_COMMIT_DIFF_CHARS = 24_000;
+const MAX_PER_COMMIT_DIFF_CHARS = 4_000;
+
+const formatCommitsForDependencyDetection = (
+  commits: readonly {
+    hash: string;
+    message: string;
+    diffs: readonly FileDiff[];
+  }[],
+): string => {
+  const sections: string[] = [];
+  let totalChars = 0;
+
+  for (const c of commits) {
+    const lines: string[] = [];
+    lines.push(`### COMMIT ${c.hash}`);
+    lines.push(`Subject: ${c.message.split('\n')[0]}`);
+    lines.push('Files:');
+    for (const d of c.diffs) {
+      const prefix = d.isNew ? 'A' : d.isDeleted ? 'D' : 'M';
+      lines.push(`  ${prefix} ${d.path}`);
+    }
+    lines.push('Diff:');
+
+    let perCommitChars = 0;
+    let truncated = false;
+    for (const d of c.diffs) {
+      if (truncated) break;
+      lines.push(`--- ${d.path} ---`);
+      for (const hunk of d.hunks) {
+        if (truncated) break;
+        lines.push(hunk.header);
+        for (const line of hunk.lines) {
+          const prefix =
+            line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
+          const text = `${prefix}${line.content}`;
+          if (perCommitChars + text.length > MAX_PER_COMMIT_DIFF_CHARS) {
+            lines.push('[... commit diff truncated]');
+            truncated = true;
+            break;
+          }
+          perCommitChars += text.length;
+          lines.push(text);
+        }
+      }
+    }
+
+    const section = lines.join('\n');
+    if (totalChars + section.length > MAX_TOTAL_COMMIT_DIFF_CHARS) {
+      sections.push('[... remaining commits omitted due to size limit]');
+      break;
+    }
+    totalChars += section.length;
+    sections.push(section);
+  }
+
+  return sections.join('\n\n');
 };
 
 // ─── Prompt Builders ────────────────────────────────────────────────
@@ -168,6 +241,32 @@ const buildBranchNamePrompt = (context: {
   return lines.join('\n');
 };
 
+const buildDependencyDetectionPrompt = (
+  commitsText: string,
+): string => `You analyze a set of git commits and identify any that update package dependencies (version bumps).
+
+A commit is "dependency-updating" if it changes any of the following:
+- Lockfiles for package managers: pnpm-lock.yaml, package-lock.json, yarn.lock, npm-shrinkwrap.json, bun.lockb, Cargo.lock, Gemfile.lock, Pipfile.lock, poetry.lock, uv.lock, composer.lock, go.sum, mix.lock, Podfile.lock, flake.lock
+- Manifest files where the diff modifies a version string or dependency entry: package.json, pyproject.toml, requirements*.txt, Pipfile, Gemfile, Cargo.toml, go.mod, composer.json, mix.exs, build.gradle, build.gradle.kts, pubspec.yaml, *.gemspec, .tool-versions, .nvmrc, .python-version, .ruby-version, asdf-related files
+- Generated artifacts of dependency tooling (e.g. vendor/ directory updates, third_party/ updates clearly tied to a version bump)
+
+Do NOT flag:
+- Pure source code changes that happen to live in package directories
+- Changes to package.json that ONLY modify "scripts", "name", "description", "keywords", "license", "author", "repository" fields (no dependency or version field touched)
+- Lockfile-shaped files inside test fixtures (e.g. __tests__/, fixtures/, examples/)
+
+For each commit you decide IS dependency-updating, add it to "flagged" with:
+- hash: the full 40-char SHA (copy verbatim from the input)
+- reason: one short sentence (Japanese OK) describing why, mentioning the specific file(s)
+
+If no commits qualify, return an empty flagged array.
+
+Respond with ONLY valid JSON matching the output schema.
+
+Commits to analyze:
+
+${commitsText}`;
+
 // ─── Codex Agent ────────────────────────────────────────────────────
 
 const TIMEOUT_MS = 15_000;
@@ -240,4 +339,17 @@ export const suggestBranchName = async (
 ): Promise<BranchNameSuggestion> => {
   const prompt = buildBranchNamePrompt(context);
   return runCodexAgent(prompt, branchNameSchema, model);
+};
+
+export const detectDependencyCommits = async (
+  commits: readonly {
+    hash: string;
+    message: string;
+    diffs: readonly FileDiff[];
+  }[],
+  model: string,
+): Promise<DependencyDetection> => {
+  const commitsText = formatCommitsForDependencyDetection(commits);
+  const prompt = buildDependencyDetectionPrompt(commitsText);
+  return runCodexAgent(prompt, dependencyDetectionSchema, model);
 };

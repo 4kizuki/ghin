@@ -11,10 +11,20 @@ const branchNameSuggestionSchema = z.object({
   branchName: z.string(),
 });
 
+const dependencyDetectionSchema = z.object({
+  flagged: z.array(
+    z.object({
+      hash: z.string(),
+      reason: z.string(),
+    }),
+  ),
+});
+
 export type CommitMessageSuggestion = z.infer<
   typeof commitMessageSuggestionSchema
 >;
 export type BranchNameSuggestion = z.infer<typeof branchNameSuggestionSchema>;
+export type DependencyDetection = z.infer<typeof dependencyDetectionSchema>;
 
 export const suggestCommitMessage = (
   repo: string,
@@ -40,4 +50,14 @@ export const suggestBranchName = (params: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'branch-name', ...params }),
+  });
+
+export const detectDependencyCommits = (
+  repo: string,
+  hashes: string[],
+): Promise<DependencyDetection> =>
+  fetchJson('/api/ai/detect-dependency-commits', dependencyDetectionSchema, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo, hashes }),
   });
