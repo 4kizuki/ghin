@@ -94,11 +94,47 @@ Rules:
 - BREAKING CHANGE: add "!" after type/scope if breaking, and explain in body
 - If recent commit messages show a consistent pattern (language, scope style, prefix conventions), follow that pattern
 
-Security check:
-- dangerFiles: list file paths from staged files that may contain secrets or sensitive data
-- Patterns to flag: .env files (except .env.example), private keys, credentials, tokens, passwords, API keys, certificates, keystores, cloud config with secrets
-- Check BOTH file names/extensions AND diff content for hardcoded secrets (e.g. password=, api_key=, secret=, token=, AWS_SECRET, PRIVATE KEY)
-- If no dangerous files found, return an empty array
+Security check (detect "dangerous git add" — files the user likely did NOT mean to commit):
+- dangerFiles: array of staged file paths matching ANY rule below. Inspect each file's path AND every added line ("+") in its diff.
+
+(A) Secret-bearing files by path / basename:
+- Env files: .env, .env.local, .env.*.local, .envrc — EXCLUDE .env.example, .env.sample, .env.template, .env.defaults, .env.test (no real values)
+- SSH / PGP keys: id_rsa, id_dsa, id_ecdsa, id_ed25519 (and *.pub counterparts when paired with private), *.pem, *.key, *.ppk, *.pgp, *.asc, *.gpg, authorized_keys, known_hosts
+- Certificates / keystores: *.p12, *.pfx, *.jks, *.keystore, *.kdbx, *.crt, *.cer, *.der
+- Cloud / service credentials: any file matching credentials*, secrets*, service-account*.json, *firebase-adminsdk*.json, gcloud-*.json, .aws/credentials, .aws/config, .gcloud/, .kube/config, .docker/config.json
+- Auth tokens / registry: .npmrc, .yarnrc, .pypirc, .netrc, .htpasswd (when containing actual tokens — see content rules)
+- Terraform / IaC state & vars: terraform.tfstate, terraform.tfstate.backup, *.tfvars (except *.tfvars.example), .terraform/
+- Database dumps / local DBs: *.sqlite, *.sqlite3, *.db, *.dump, *.sql (only if it appears to contain real data — large file or rows of INSERT INTO)
+
+(B) Hardcoded secret patterns in added diff lines (regex-style — interpret loosely):
+- Assignment style with a real-looking value: (password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|private[_-]?key|client[_-]?secret|bearer)\s*[:=]\s*['"]?[A-Za-z0-9_\-./+=]{12,}
+- AWS access key: AKIA[0-9A-Z]{16}; AWS secret: aws_secret_access_key with value
+- Google API: AIza[0-9A-Za-z_\-]{35}; OAuth refresh: ya29\.
+- GitHub: ghp_, gho_, ghs_, ghu_, ghr_, github_pat_
+- Slack: xox[abprs]-[A-Za-z0-9-]+
+- Stripe live: sk_live_, rk_live_
+- OpenAI / Anthropic: sk-[A-Za-z0-9]{20,}, sk-ant-[A-Za-z0-9_\-]{20,}
+- JWT: eyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+
+- PEM block: -----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----
+- Credentials in URL: \w+://[^:\s]+:[^@\s/]+@ (e.g. postgres://user:pw@host, https://user:token@github.com)
+
+(C) Likely accidentally-staged files (build artifacts / local junk that should be gitignored):
+- Build / cache output: dist/, build/, out/, .next/, .turbo/, .nuxt/, .svelte-kit/, target/, bin/, obj/, coverage/, .nyc_output/
+- Dependencies / vendored: node_modules/, vendor/, .venv/, venv/, __pycache__/, *.pyc
+- Editor / OS junk: .DS_Store, Thumbs.db, desktop.ini, .idea/, *.iml — DO NOT flag .vscode/ (often shared)
+- Backup / swap / merge leftovers: *.bak, *.swp, *.swo, *.orig, *.rej, *~, *.tmp
+- Logs / pid: *.log, *.pid, npm-debug.log*, yarn-error.log*
+
+False-positive guards (do NOT flag):
+- Placeholder / example values: your_key_here, xxx, <TOKEN>, REPLACE_ME, "", "changeme", "example", $\{VAR\}, process.env.X — these are not real secrets
+- Lockfile updates (pnpm-lock.yaml, package-lock.json, yarn.lock, Cargo.lock) unless they introduce a literal secret string
+- README / docs that mention secret-shaped patterns inside code fences as documentation
+- Test fixtures clearly under __tests__/, test/, fixtures/, mocks/ with synthetic data
+- Anything in .env.example-class files (see exclusions in A)
+
+Output:
+- Include each unique file path AT MOST ONCE in dangerFiles
+- If nothing matches, return an empty array
 
 - Respond with ONLY valid JSON matching the output schema
 
