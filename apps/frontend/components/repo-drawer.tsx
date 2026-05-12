@@ -49,6 +49,15 @@ export const RepoDrawer: FunctionComponent<{
     r.name.toLowerCase().includes(filter.toLowerCase()),
   );
 
+  const highlighted = filter !== '' ? filtered[0] : undefined;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && highlighted) {
+      onOpenRepo(highlighted.id);
+      handleClose();
+    }
+  };
+
   return (
     <Drawer
       opened={opened}
@@ -84,6 +93,7 @@ export const RepoDrawer: FunctionComponent<{
           leftSection={<IconSearch size={16} />}
           value={filter}
           onChange={(e) => setFilter(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
           style={{ flex: '0 0 auto' }}
         />
 
@@ -96,12 +106,16 @@ export const RepoDrawer: FunctionComponent<{
         >
           {filtered.map((repo) => {
             const isOpen = openTabIds.includes(repo.id);
+            const isHighlighted = repo.id === highlighted?.id;
             return (
               <Group
                 key={repo.id}
                 px="sm"
                 py={6}
                 wrap="nowrap"
+                bg={
+                  isHighlighted ? 'var(--mantine-color-blue-light)' : undefined
+                }
                 style={{ cursor: 'pointer' }}
                 onClick={() => {
                   onOpenRepo(repo.id);
