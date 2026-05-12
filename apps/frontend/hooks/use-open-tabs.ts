@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { setSetting } from '@/lib/api';
 import { OPEN_TAB_IDS_SETTING_KEY } from '@/lib/open-tabs-storage';
 
 let store: string[] | null = null;
-let initialized = false;
+let storeInitialized = false;
 const listeners = new Set<() => void>();
 
 const notify = (): void => {
@@ -14,26 +14,36 @@ const notify = (): void => {
 
 const subscribe = (cb: () => void): (() => void) => {
   listeners.add(cb);
-  return () => listeners.delete(cb);
+  return () => {
+    listeners.delete(cb);
+  };
 };
-
-const getSnapshot = (): string[] | null => store;
-const getServerSnapshot = (): string[] | null => store;
 
 const writeStore = (ids: string[]): void => {
   store = ids;
+  storeInitialized = true;
   notify();
   void setSetting(OPEN_TAB_IDS_SETTING_KEY, JSON.stringify(ids));
 };
 
-export const initOpenTabStore = (initial: string[] | null): void => {
-  if (initialized) return;
-  initialized = true;
-  store = initial;
+export const useOpenTabStore = (initial: string[] | null): string[] | null => {
+  const getSnapshot = useCallback(
+    (): string[] | null => (storeInitialized ? store : initial),
+    [initial],
+  );
+  const getServerSnapshot = useCallback(
+    (): string[] | null => initial,
+    [initial],
+  );
+  useEffect(() => {
+    if (!storeInitialized) {
+      store = initial;
+      storeInitialized = true;
+      notify();
+    }
+  }, [initial]);
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 };
-
-export const useOpenTabStore = (): string[] | null =>
-  useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
 export const useOpenTabActions = (): {
   openTab: (id: string) => void;

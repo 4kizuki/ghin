@@ -66,6 +66,15 @@ export const tagInfoSchema = z.object({
   name: z.string(),
 });
 
+export const worktreeInfoSchema = z.object({
+  path: z.string(),
+  branch: z.string().nullable(),
+  head: z.string().nullable(),
+  isMain: z.boolean(),
+  isCurrent: z.boolean(),
+  locked: z.boolean(),
+});
+
 export const branchInfoSchema = z.object({
   name: z.string(),
   current: z.boolean(),

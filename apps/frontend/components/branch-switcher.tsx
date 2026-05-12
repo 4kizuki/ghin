@@ -22,11 +22,14 @@ import {
   IconGitBranch,
   IconTag,
   IconTrash,
+  IconFolder,
+  IconLock,
 } from '@tabler/icons-react';
-import type { BranchInfo, TagInfo } from '@/lib/git';
+import type { BranchInfo, TagInfo, WorktreeInfo } from '@/lib/git';
 import {
   getBranches,
   getTags,
+  getWorktrees,
   deleteTag,
   checkoutRef,
   createBranch,
@@ -43,6 +46,7 @@ export const BranchSwitcher: FunctionComponent<{
 }> = ({ opened, onClose, repoPath, onSwitch }) => {
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [tags, setTags] = useState<TagInfo[]>([]);
+  const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([]);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +60,18 @@ export const BranchSwitcher: FunctionComponent<{
     setLoading(true);
     setError(null);
     try {
-      const [b, t] = await Promise.all([
+      const [b, t, w] = await Promise.all([
         getBranches(repoPath),
         getTags(repoPath),
+        getWorktrees(repoPath),
       ]);
       setBranches(b);
       setTags(t);
+      setWorktrees(w);
     } catch (e) {
       setBranches([]);
       setTags([]);
+      setWorktrees([]);
       setError(e instanceof Error ? e.message : 'Failed to load data');
     } finally {
       setLoading(false);
@@ -134,6 +141,13 @@ export const BranchSwitcher: FunctionComponent<{
   const filteredTags = tags.filter((t) =>
     t.name.toLowerCase().includes(filter.toLowerCase()),
   );
+  const filteredWorktrees = worktrees.filter((w) => {
+    const q = filter.toLowerCase();
+    return (
+      w.path.toLowerCase().includes(q) ||
+      (w.branch !== null && w.branch.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <Drawer
@@ -182,6 +196,7 @@ export const BranchSwitcher: FunctionComponent<{
             <Tabs.Tab value="local">Local</Tabs.Tab>
             <Tabs.Tab value="remote">Remote</Tabs.Tab>
             <Tabs.Tab value="tags">Tags</Tabs.Tab>
+            <Tabs.Tab value="worktrees">Worktrees</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel
@@ -360,6 +375,58 @@ export const BranchSwitcher: FunctionComponent<{
                         <IconTrash size={12} />
                       </ActionIcon>
                     </Tooltip>
+                  </Group>
+                </Box>
+              ))
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel
+            value="worktrees"
+            style={{
+              flex: '1 1 0',
+              overflow: 'auto',
+              overscrollBehavior: 'none',
+            }}
+          >
+            {loading ? (
+              <Group justify="center" py="md">
+                <Loader size="sm" />
+              </Group>
+            ) : filteredWorktrees.length === 0 ? (
+              <Text size="sm" c="dimmed" ta="center" py="md">
+                No worktrees
+              </Text>
+            ) : (
+              filteredWorktrees.map((wt) => (
+                <Box key={wt.path} px="sm" py={6}>
+                  <Group gap="xs" wrap="nowrap">
+                    <IconFolder size={14} style={{ flexShrink: 0 }} />
+                    <Tooltip label={wt.path} openDelay={500}>
+                      <Text size="sm" truncate style={{ minWidth: 0 }}>
+                        {wt.branch ?? '(detached)'}
+                      </Text>
+                    </Tooltip>
+                    {wt.isCurrent && (
+                      <Badge size="xs" color="blue" style={{ flexShrink: 0 }}>
+                        current
+                      </Badge>
+                    )}
+                    {wt.isMain && !wt.isCurrent && (
+                      <Badge
+                        size="xs"
+                        color="gray"
+                        variant="light"
+                        style={{ flexShrink: 0 }}
+                      >
+                        main
+                      </Badge>
+                    )}
+                    {wt.locked && (
+                      <Tooltip label="Locked">
+                        <IconLock size={12} style={{ flexShrink: 0 }} />
+                      </Tooltip>
+                    )}
                   </Group>
                 </Box>
               ))

@@ -1,12 +1,27 @@
+import { resolve } from 'node:path';
 import type { RepoStatus, FileDiff, FileChange } from './types';
 import { exec } from './exec';
 import { parseStatusLine, parseDiff } from './parsers';
+import { getWorktrees } from './worktree';
 
 export const getStatus = async (cwd: string): Promise<RepoStatus> => {
-  const [statusOutput, branchOutput] = await Promise.all([
+  const [statusOutput, branchOutput, worktrees] = await Promise.all([
     exec(['status', '--porcelain=v1', '-u'], cwd),
     exec(['status', '--branch', '--porcelain=v2'], cwd),
+    getWorktrees(cwd),
   ]);
+
+  const resolvedCwd = resolve(cwd);
+  const otherWorktreePaths = worktrees
+    .map((w) => resolve(w.path))
+    .filter((p) => p !== resolvedCwd);
+  const isInOtherWorktree = (filePath: string): boolean => {
+    const trimmed = filePath.endsWith('/') ? filePath.slice(0, -1) : filePath;
+    const abs = resolve(resolvedCwd, trimmed);
+    return otherWorktreePaths.some(
+      (wp) => abs === wp || abs.startsWith(wp + '/'),
+    );
+  };
 
   let branch = 'HEAD';
   let upstream: string | undefined;
@@ -36,8 +51,10 @@ export const getStatus = async (cwd: string): Promise<RepoStatus> => {
     if (!line) continue;
     const parsed = parseStatusLine(line);
     if (!parsed) continue;
-    if (parsed.staged) stagedFiles.push(parsed.staged);
-    if (parsed.unstaged) {
+    if (parsed.staged && !isInOtherWorktree(parsed.staged.path)) {
+      stagedFiles.push(parsed.staged);
+    }
+    if (parsed.unstaged && !isInOtherWorktree(parsed.unstaged.path)) {
       if (parsed.unstaged.status === '?') {
         untrackedFiles.push(parsed.unstaged);
       } else {

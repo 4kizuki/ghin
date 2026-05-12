@@ -9,6 +9,7 @@ export type {
   CommitInfo,
   BranchInfo,
   TagInfo,
+  WorktreeInfo,
   RepoStatus,
   SearchResult,
 } from './types';
@@ -61,6 +62,7 @@ import {
   distributeCommitDates,
 } from './repo';
 import { getTags, deleteTag } from './tag';
+import { getWorktrees } from './worktree';
 
 export const git = {
   getStatus,
@@ -111,4 +113,5 @@ export const git = {
   openInTerminal,
   getTags,
   deleteTag,
+  getWorktrees,
 };

@@ -42,6 +42,7 @@ export {
 } from './remote';
 export { resetToCommit, revertCommit } from './reset';
 export { getTags, deleteTag } from './tag';
+export { getWorktrees } from './worktree';
 export { searchGit } from './search';
 export { getSettings, setSetting, setGitConfig } from './settings';
 export {

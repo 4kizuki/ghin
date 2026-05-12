@@ -32,8 +32,9 @@ import { useOpenTabStore, useOpenTabActions } from '@/hooks/use-open-tabs';
 
 export const AppShellView: FunctionComponent<{
   repos: Repository[];
+  initialOpenTabIds: string[] | null;
   children: ReactNode;
-}> = ({ repos, children }) => {
+}> = ({ repos, initialOpenTabIds, children }) => {
   const params = useParams<{ repoId?: string }>();
   const router = useRouter();
   const pathname = usePathname();
@@ -47,7 +48,7 @@ export const AppShellView: FunctionComponent<{
     useDisclosure(false);
 
   const allRepoIds = useMemo(() => repos.map((r) => r.id), [repos]);
-  const rawOpenTabIds = useOpenTabStore();
+  const rawOpenTabIds = useOpenTabStore(initialOpenTabIds);
   const { openTab, closeTab, setOpenTabs } = useOpenTabActions();
 
   // null = 設定未保存（初回起動）→ 全リポジトリ表示

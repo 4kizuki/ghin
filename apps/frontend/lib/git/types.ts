@@ -54,6 +54,15 @@ type TagInfo = {
   name: string;
 };
 
+type WorktreeInfo = {
+  path: string;
+  branch: string | null;
+  head: string | null;
+  isMain: boolean;
+  isCurrent: boolean;
+  locked: boolean;
+};
+
 type RepoStatus = {
   branch: string;
   upstream?: string;
@@ -81,6 +90,7 @@ export type {
   CommitInfo,
   BranchInfo,
   TagInfo,
+  WorktreeInfo,
   RepoStatus,
   SearchResult,
 };
