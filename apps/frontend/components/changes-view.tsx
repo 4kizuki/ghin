@@ -243,7 +243,14 @@ export const ChangesView: FunctionComponent<{
         commitInputRef={commitInputRef}
         aiEnabled={aiEnabled}
         aiCommitLoading={commitFlow.aiCommitLoading}
+        aiCommitPhase={commitFlow.aiCommitPhase}
         onSuggestCommitMessage={commitFlow.handleSuggestCommitMessage}
+        onSuggestCommitMessageUnlimited={
+          commitFlow.handleSuggestCommitMessageUnlimited
+        }
+        onCancelSuggestCommitMessage={
+          commitFlow.handleCancelSuggestCommitMessage
+        }
         stagedCount={status.stagedFiles.length}
         autoPush={commitFlow.autoPush}
         onAutoPushToggle={commitFlow.handleAutoPushToggle}

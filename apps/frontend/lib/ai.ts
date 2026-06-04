@@ -5,6 +5,38 @@ import { z } from 'zod';
 
 import type { FileDiff } from '@/lib/git';
 
+// ─── Phase Classification ───────────────────────────────────────────
+
+type CommitPhase =
+  | 'analyzing-diff'
+  | 'checking-history'
+  | 'inspecting-file'
+  | 'working';
+
+const classifyCommand = (command: string): CommitPhase => {
+  const c = command.toLowerCase();
+  if (c.includes('diff')) return 'analyzing-diff';
+  if (c.includes('log') || c.includes('show')) return 'checking-history';
+  if (
+    c.includes('cat') ||
+    c.includes('head') ||
+    c.includes('sed') ||
+    c.includes('tail') ||
+    c.includes('less') ||
+    c.includes('grep')
+  ) {
+    return 'inspecting-file';
+  }
+  return 'working';
+};
+
+type CommitStreamEvent =
+  | { type: 'progress'; phase: CommitPhase }
+  | { type: 'final'; suggestion: CommitMessageSuggestion }
+  | { type: 'error'; message: string };
+
+export type { CommitPhase, CommitStreamEvent };
+
 // ─── Schemas ────────────────────────────────────────────────────────
 
 const commitMessageSchema = z.object({
@@ -37,47 +69,6 @@ export type {
 };
 
 // ─── Diff Formatting ────────────────────────────────────────────────
-
-const MAX_DIFF_CHARS = 8000;
-
-const formatDiffForPrompt = (diffs: readonly FileDiff[]): string => {
-  const lines: string[] = [];
-  let charCount = 0;
-
-  for (const d of diffs) {
-    const prefix = d.isNew ? 'A' : d.isDeleted ? 'D' : 'M';
-    lines.push(`${prefix} ${d.path}`);
-  }
-  lines.push('');
-
-  let filesIncluded = 0;
-  for (const d of diffs) {
-    if (charCount > MAX_DIFF_CHARS) break;
-    lines.push(`--- ${d.path} ---`);
-    for (const hunk of d.hunks) {
-      lines.push(hunk.header);
-      for (const line of hunk.lines) {
-        const prefix =
-          line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
-        const text = `${prefix}${line.content}`;
-        charCount += text.length;
-        if (charCount > MAX_DIFF_CHARS) {
-          lines.push('[... truncated]');
-          break;
-        }
-        lines.push(text);
-      }
-      if (charCount > MAX_DIFF_CHARS) break;
-    }
-    filesIncluded++;
-  }
-
-  if (filesIncluded < diffs.length) {
-    lines.push(`[... ${diffs.length - filesIncluded} more files not shown]`);
-  }
-
-  return lines.join('\n');
-};
 
 const MAX_TOTAL_COMMIT_DIFF_CHARS = 24_000;
 const MAX_PER_COMMIT_DIFF_CHARS = 4_000;
@@ -140,22 +131,14 @@ const formatCommitsForDependencyDetection = (
 
 // ─── Prompt Builders ────────────────────────────────────────────────
 
-const buildCommitMessagePrompt = (
-  diffText: string,
-  stagedFiles: readonly { path: string; status: string }[],
-  branch: string,
-  recentMessages: readonly string[],
-): string => {
-  const fileList = stagedFiles.map((f) => `  ${f.status} ${f.path}`).join('\n');
-
-  const historySection =
-    recentMessages.length > 0
-      ? `\nRecent commit messages (match tone, style, language, and conventions):
-${recentMessages.map((m) => `  - ${m}`).join('\n')}\n`
-      : '';
-
+const buildCommitMessagePrompt = (): string => {
   return `You are a git commit message generator following the Conventional Commits specification.
-Write a commit message for the following staged changes.
+You are running as an agent inside the user's git repository. Gather everything you need yourself by running git commands.
+
+The user has ALREADY staged the changes to commit. Inspect the staged changes by running: git diff --cached (a.k.a. git diff --staged). Do NOT look at unstaged working-tree changes.
+
+Run git log (recent commits) and git show HEAD to study (1) the team's message style/language/scope conventions and (2) whether the current staged change is a continuation / fix / refactor of the previous commit, so the message reads naturally in sequence. Reflect that relationship in the wording when relevant, but DO NOT propose amend/fixup actions — only produce the message.
+
 Rules:
 - Format: <type>[optional scope]: <description>
 - Types: feat, fix, refactor, docs, style, test, chore, perf, ci, build, revert
@@ -169,6 +152,7 @@ Rules:
 
 Security check (detect "dangerous git add" — files the user likely did NOT mean to commit):
 - dangerFiles: array of staged file paths matching ANY rule below. Inspect each file's path AND every added line ("+") in its diff.
+- Primarily inspect the added ('+') lines of the staged diff. If a staged file is genuinely suspicious and the diff is insufficient to decide (e.g. binary or ambiguous), you MAY read the file contents to confirm.
 
 (A) Secret-bearing files by path / basename:
 - Env files: .env, .env.local, .env.*.local, .envrc — EXCLUDE .env.example, .env.sample, .env.template, .env.defaults, .env.test (no real values)
@@ -209,15 +193,7 @@ Output:
 - Include each unique file path AT MOST ONCE in dangerFiles
 - If nothing matches, return an empty array
 
-- Respond with ONLY valid JSON matching the output schema
-
-Branch: ${branch}
-${historySection}
-Staged files:
-${fileList}
-
-Diff:
-${diffText}`;
+Respond with ONLY valid JSON matching the output schema { subject, body, dangerFiles }.`;
 };
 
 const buildBranchNamePrompt = (context: {
@@ -313,22 +289,87 @@ const runCodexAgent = async <T>(
 
 // ─── Public API ─────────────────────────────────────────────────────
 
-export const suggestCommitMessage = async (
-  diffs: readonly FileDiff[],
-  stagedFiles: readonly { path: string; status: string }[],
-  branch: string,
-  recentMessages: readonly string[],
+export async function* streamCommitMessage(
+  repo: string,
   model: string,
-): Promise<CommitMessageSuggestion> => {
-  const diffText = formatDiffForPrompt(diffs);
-  const prompt = buildCommitMessagePrompt(
-    diffText,
-    stagedFiles,
-    branch,
-    recentMessages,
-  );
-  return runCodexAgent(prompt, commitMessageSchema, model);
-};
+  options: { unlimited: boolean; signal?: AbortSignal },
+): AsyncGenerator<CommitStreamEvent> {
+  const codex = new Codex();
+  const thread = codex.startThread({
+    model,
+    modelReasoningEffort: 'medium',
+    sandboxMode: 'read-only',
+    workingDirectory: repo,
+    skipGitRepoCheck: true,
+    approvalPolicy: 'never',
+  });
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutMs = options.unlimited ? 600_000 : 60_000;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', () => controller.abort());
+    }
+  }
+
+  const prompt = buildCommitMessagePrompt();
+
+  try {
+    const { events } = await thread.runStreamed(prompt, {
+      outputSchema: z.toJSONSchema(commitMessageSchema),
+      signal: controller.signal,
+    });
+
+    let lastPhase: CommitPhase | null = null;
+    let agentText = '';
+
+    for await (const ev of events) {
+      if (
+        ev.type === 'item.started' ||
+        ev.type === 'item.updated' ||
+        ev.type === 'item.completed'
+      ) {
+        const item = ev.item;
+        if (item.type === 'command_execution') {
+          const phase = classifyCommand(item.command);
+          if (phase !== lastPhase) {
+            lastPhase = phase;
+            yield { type: 'progress', phase };
+          }
+        } else if (item.type === 'agent_message') {
+          agentText = item.text;
+        }
+      } else if (ev.type === 'turn.failed') {
+        throw new Error(ev.error.message);
+      } else if (ev.type === 'error') {
+        throw new Error(ev.message);
+      }
+    }
+
+    const json = extractJson(agentText);
+    const suggestion = commitMessageSchema.parse(JSON.parse(json));
+    yield { type: 'final', suggestion };
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      if (timedOut) {
+        throw new Error('AI suggestion timed out');
+      }
+      // Client cancelled — the consumer is gone; stop silently.
+      return;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export const suggestBranchName = async (
   context: {

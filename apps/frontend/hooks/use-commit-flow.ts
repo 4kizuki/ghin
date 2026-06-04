@@ -1,14 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import type { RepoStatus } from '@/lib/git';
+import type { CommitPhase } from '@/lib/api';
 import {
   commitChanges,
   setSetting,
   getRemoteUrl,
   addRemote,
   setGitConfig,
-  suggestCommitMessage,
+  streamCommitMessageSuggestion,
   suggestBranchName,
   IdentityUnknownError,
 } from '@/lib/api';
@@ -49,7 +50,9 @@ export const useCommitFlow = ({
     (() => Promise<void>) | null
   >(null);
   const [aiCommitLoading, setAiCommitLoading] = useState(false);
+  const [aiCommitPhase, setAiCommitPhase] = useState<CommitPhase | null>(null);
   const [aiBranchLoading, setAiBranchLoading] = useState(false);
+  const aiCommitControllerRef = useRef<AbortController | null>(null);
 
   const [newBranchOpened, { open: openNewBranch, close: closeNewBranch }] =
     useDisclosure(false);
@@ -299,37 +302,59 @@ export const useCommitFlow = ({
     setSetting('autoPush', String(checked));
   }, []);
 
-  const handleSuggestCommitMessage = useCallback(async () => {
-    if (status.stagedFiles.length === 0) return;
-    setAiCommitLoading(true);
-    try {
-      const suggestion = await suggestCommitMessage(
-        repoPath,
-        status.branch,
-        status.stagedFiles.map((f) => ({
-          path: f.path,
-          status: f.status,
-          staged: f.staged,
-        })),
-      );
-      const dangerPrefix =
-        suggestion.dangerFiles.length > 0
-          ? `⚠️ INCLUDED DANGER FILES: ${suggestion.dangerFiles.join(', ')}\n\n`
-          : '';
-      const message = suggestion.body
-        ? `${dangerPrefix}${suggestion.subject}\n\n${suggestion.body}`
-        : `${dangerPrefix}${suggestion.subject}`;
-      setCommitMsg(message);
-    } catch {
-      notifications.show({
-        title: 'AI Suggestion Failed',
-        message: 'Could not generate a commit message.',
-        color: 'red',
-      });
-    } finally {
-      setAiCommitLoading(false);
-    }
-  }, [repoPath, status.branch, status.stagedFiles, setCommitMsg]);
+  const runSuggestCommitMessage = useCallback(
+    async (unlimited: boolean) => {
+      if (status.stagedFiles.length === 0) return;
+      const controller = new AbortController();
+      aiCommitControllerRef.current = controller;
+      setAiCommitLoading(true);
+      setAiCommitPhase('working');
+      try {
+        const suggestion = await streamCommitMessageSuggestion(repoPath, {
+          unlimited,
+          signal: controller.signal,
+          onProgress: setAiCommitPhase,
+        });
+        const dangerPrefix =
+          suggestion.dangerFiles.length > 0
+            ? `⚠️ INCLUDED DANGER FILES: ${suggestion.dangerFiles.join(', ')}\n\n`
+            : '';
+        const message = suggestion.body
+          ? `${dangerPrefix}${suggestion.subject}\n\n${suggestion.body}`
+          : `${dangerPrefix}${suggestion.subject}`;
+        setCommitMsg(message);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // user cancelled: silent
+        } else {
+          notifications.show({
+            title: 'AI Suggestion Failed',
+            message: 'Could not generate a commit message.',
+            color: 'red',
+          });
+        }
+      } finally {
+        setAiCommitLoading(false);
+        setAiCommitPhase(null);
+        aiCommitControllerRef.current = null;
+      }
+    },
+    [repoPath, status.stagedFiles, setCommitMsg],
+  );
+
+  const handleSuggestCommitMessage = useCallback(
+    () => runSuggestCommitMessage(false),
+    [runSuggestCommitMessage],
+  );
+
+  const handleSuggestCommitMessageUnlimited = useCallback(
+    () => runSuggestCommitMessage(true),
+    [runSuggestCommitMessage],
+  );
+
+  const handleCancelSuggestCommitMessage = useCallback(() => {
+    aiCommitControllerRef.current?.abort();
+  }, []);
 
   const handleSuggestBranchName = useCallback(async () => {
     if (!commitMsg.trim()) return;
@@ -372,6 +397,7 @@ export const useCommitFlow = ({
     setIdentityEmail,
     identitySaving,
     aiCommitLoading,
+    aiCommitPhase,
     aiBranchLoading,
     newBranchOpened,
     closeNewBranch,
@@ -389,6 +415,8 @@ export const useCommitFlow = ({
     handleSaveIdentity,
     handleAutoPushToggle,
     handleSuggestCommitMessage,
+    handleSuggestCommitMessageUnlimited,
+    handleCancelSuggestCommitMessage,
     handleSuggestBranchName,
   };
 };

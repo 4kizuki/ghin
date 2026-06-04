@@ -1,25 +1,18 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { git } from '@/lib/git';
-import { suggestCommitMessage, suggestBranchName } from '@/lib/ai';
+import { streamCommitMessage, suggestBranchName } from '@/lib/ai';
+import type { CommitStreamEvent } from '@/lib/ai';
 import { prisma } from '@/lib/prisma';
 
 const DEFAULT_MODEL = 'gpt-5.3-codex-spark';
 
 // ─── Request Schemas ────────────────────────────────────────────────
 
-const fileChangeSchema = z.object({
-  path: z.string(),
-  status: z.string(),
-  staged: z.boolean(),
-});
-
 const commitMessageBody = z.object({
   type: z.literal('commit-message'),
   repo: z.string().min(1),
-  branch: z.string(),
-  stagedFiles: z.array(fileChangeSchema),
+  unlimited: z.boolean().optional(),
 });
 
 const branchNameBody = z.object({
@@ -35,7 +28,7 @@ const bodySchema = z.discriminatedUnion('type', [
 
 // ─── Handler ────────────────────────────────────────────────────────
 
-export const POST = async (request: Request): Promise<NextResponse> => {
+export const POST = async (request: Request): Promise<Response> => {
   const body: unknown = await request.json();
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
@@ -56,23 +49,46 @@ export const POST = async (request: Request): Promise<NextResponse> => {
 
   const model = modelRow?.value || DEFAULT_MODEL;
 
-  try {
-    if (parsed.data.type === 'commit-message') {
-      const [diffs, recentCommits] = await Promise.all([
-        git.getDiff(parsed.data.repo, true),
-        git.getLog(parsed.data.repo, 20).catch(() => []),
-      ]);
-      const recentMessages = recentCommits.map((c) => c.message);
-      const suggestion = await suggestCommitMessage(
-        diffs,
-        parsed.data.stagedFiles,
-        parsed.data.branch,
-        recentMessages,
-        model,
-      );
-      return NextResponse.json(suggestion);
-    }
+  if (parsed.data.type === 'commit-message') {
+    const { repo, unlimited } = parsed.data;
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        const send = (e: CommitStreamEvent): void => {
+          controller.enqueue(
+            encoder.encode('data: ' + JSON.stringify(e) + '\n\n'),
+          );
+        };
+        try {
+          for await (const ev of streamCommitMessage(repo, model, {
+            unlimited: unlimited ?? false,
+            signal: request.signal,
+          })) {
+            send(ev);
+          }
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          try {
+            send({ type: 'error', message });
+          } catch {
+            /* client gone */
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    });
+  }
+
+  try {
     const suggestion = await suggestBranchName(
       {
         commitMessage: parsed.data.commitMessage,

@@ -10,7 +10,8 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconGitBranch } from '@tabler/icons-react';
-import { AiSuggestButton } from '@/components/ai-suggest-button';
+import { AiCommitControls } from '@/components/ai-commit-controls';
+import type { CommitPhase } from '@/lib/api';
 
 export const CommitPanel: FunctionComponent<{
   branch: string;
@@ -19,7 +20,10 @@ export const CommitPanel: FunctionComponent<{
   commitInputRef: RefObject<HTMLTextAreaElement | null>;
   aiEnabled: boolean;
   aiCommitLoading: boolean;
+  aiCommitPhase: CommitPhase | null;
   onSuggestCommitMessage: () => void;
+  onSuggestCommitMessageUnlimited: () => void;
+  onCancelSuggestCommitMessage: () => void;
   stagedCount: number;
   autoPush: boolean;
   onAutoPushToggle: (checked: boolean) => void;
@@ -33,7 +37,10 @@ export const CommitPanel: FunctionComponent<{
   commitInputRef,
   aiEnabled,
   aiCommitLoading,
+  aiCommitPhase,
   onSuggestCommitMessage,
+  onSuggestCommitMessageUnlimited,
+  onCancelSuggestCommitMessage,
   stagedCount,
   autoPush,
   onAutoPushToggle,
@@ -65,15 +72,18 @@ export const CommitPanel: FunctionComponent<{
             ref={commitInputRef}
             rightSection={
               aiEnabled ? (
-                <AiSuggestButton
-                  onClick={onSuggestCommitMessage}
+                <AiCommitControls
+                  onSuggest={onSuggestCommitMessage}
+                  onSuggestUnlimited={onSuggestCommitMessageUnlimited}
+                  onCancel={onCancelSuggestCommitMessage}
                   loading={aiCommitLoading}
+                  phase={aiCommitPhase}
                   disabled={stagedCount === 0}
-                  tooltip="AI: suggest commit message"
                 />
               ) : undefined
             }
-            rightSectionWidth={aiEnabled ? 32 : undefined}
+            rightSectionWidth={aiEnabled ? 64 : undefined}
+            rightSectionPointerEvents="all"
             style={{ flex: 1 }}
           />
         </Group>

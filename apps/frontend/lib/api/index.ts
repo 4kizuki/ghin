@@ -3,6 +3,7 @@ export type {
   CommitMessageSuggestion,
   BranchNameSuggestion,
   DependencyDetection,
+  CommitPhase,
 } from './ai';
 
 export { IdentityUnknownError } from './errors';
@@ -55,7 +56,7 @@ export {
   openInTerminal,
 } from './advanced';
 export {
-  suggestCommitMessage,
+  streamCommitMessageSuggestion,
   suggestBranchName,
   detectDependencyCommits,
 } from './ai';
