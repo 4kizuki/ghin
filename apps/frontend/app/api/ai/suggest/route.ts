@@ -82,6 +82,7 @@ export const POST = async (request: Request): Promise<NextResponse> => {
     );
     return NextResponse.json(suggestion);
   } catch (error: unknown) {
+    console.error('[api/ai/suggest] failed', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
 
     if (message === 'Codex timeout' || message.includes('aborted')) {
