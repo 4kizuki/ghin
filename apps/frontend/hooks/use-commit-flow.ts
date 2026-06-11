@@ -310,8 +310,10 @@ export const useCommitFlow = ({
       setAiCommitLoading(true);
       setAiCommitPhase('working');
       try {
+        const hint = commitMsg.trim();
         const suggestion = await streamCommitMessageSuggestion(repoPath, {
           unlimited,
+          hint: hint || undefined,
           signal: controller.signal,
           onProgress: setAiCommitPhase,
         });
@@ -339,7 +341,7 @@ export const useCommitFlow = ({
         aiCommitControllerRef.current = null;
       }
     },
-    [repoPath, status.stagedFiles, setCommitMsg],
+    [repoPath, status.stagedFiles, commitMsg, setCommitMsg],
   );
 
   const handleSuggestCommitMessage = useCallback(

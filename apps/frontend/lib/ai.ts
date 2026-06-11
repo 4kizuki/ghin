@@ -131,7 +131,19 @@ const formatCommitsForDependencyDetection = (
 
 // ─── Prompt Builders ────────────────────────────────────────────────
 
-const buildCommitMessagePrompt = (): string => {
+const buildCommitMessagePrompt = (hint?: string): string => {
+  const hintSection =
+    hint && hint.trim()
+      ? `The user has ALREADY drafted a commit message. Treat it as a HINT describing their intent — it is the most important signal of what this change is about and which wording/language they prefer. Your job is to REFINE it: keep its meaning and language, but fix the conventional-commit type/scope, tighten the wording, correct the format, and incorporate anything important from the staged diff that the draft missed. Do NOT discard the user's intent or switch languages. If the draft is already good, return it with only minimal corrections.
+
+User's draft message:
+"""
+${hint.trim()}
+"""
+
+`
+      : '';
+
   return `You are a git commit message generator following the Conventional Commits specification.
 You are running as an agent inside the user's git repository. Gather everything you need yourself by running git commands.
 
@@ -139,7 +151,7 @@ The user has ALREADY staged the changes to commit. Inspect the staged changes by
 
 Run git log (recent commits) and git show HEAD to study (1) the team's message style/language/scope conventions and (2) whether the current staged change is a continuation / fix / refactor of the previous commit, so the message reads naturally in sequence. Reflect that relationship in the wording when relevant, but DO NOT propose amend/fixup actions — only produce the message.
 
-Rules:
+${hintSection}Rules:
 - Format: <type>[optional scope]: <description>
 - Types: feat, fix, refactor, docs, style, test, chore, perf, ci, build, revert
 - Scope is optional, derived from the area of change (e.g. auth, api, ui)
@@ -292,7 +304,7 @@ const runCodexAgent = async <T>(
 export async function* streamCommitMessage(
   repo: string,
   model: string,
-  options: { unlimited: boolean; signal?: AbortSignal },
+  options: { unlimited: boolean; hint?: string; signal?: AbortSignal },
 ): AsyncGenerator<CommitStreamEvent> {
   const codex = new Codex();
   const thread = codex.startThread({
@@ -320,7 +332,7 @@ export async function* streamCommitMessage(
     }
   }
 
-  const prompt = buildCommitMessagePrompt();
+  const prompt = buildCommitMessagePrompt(options.hint);
 
   try {
     const { events } = await thread.runStreamed(prompt, {

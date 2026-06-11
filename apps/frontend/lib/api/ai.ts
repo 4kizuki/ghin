@@ -49,6 +49,7 @@ export const streamCommitMessageSuggestion = async (
   repo: string,
   options: {
     unlimited: boolean;
+    hint?: string;
     signal?: AbortSignal;
     onProgress?: (phase: CommitPhase) => void;
   },
@@ -60,6 +61,7 @@ export const streamCommitMessageSuggestion = async (
       type: 'commit-message',
       repo,
       unlimited: options.unlimited,
+      hint: options.hint,
     }),
     signal: options.signal,
   });

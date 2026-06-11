@@ -13,6 +13,7 @@ const commitMessageBody = z.object({
   type: z.literal('commit-message'),
   repo: z.string().min(1),
   unlimited: z.boolean().optional(),
+  hint: z.string().optional(),
 });
 
 const branchNameBody = z.object({
@@ -50,7 +51,7 @@ export const POST = async (request: Request): Promise<Response> => {
   const model = modelRow?.value || DEFAULT_MODEL;
 
   if (parsed.data.type === 'commit-message') {
-    const { repo, unlimited } = parsed.data;
+    const { repo, unlimited, hint } = parsed.data;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const encoder = new TextEncoder();
@@ -62,6 +63,7 @@ export const POST = async (request: Request): Promise<Response> => {
         try {
           for await (const ev of streamCommitMessage(repo, model, {
             unlimited: unlimited ?? false,
+            hint,
             signal: request.signal,
           })) {
             send(ev);
