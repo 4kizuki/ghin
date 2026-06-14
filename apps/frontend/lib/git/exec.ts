@@ -1,5 +1,22 @@
 import { exec as execCb, execFile } from 'node:child_process';
 
+/**
+ * 認証情報を要求された（資格情報ヘルパーが応答できず端末プロンプトに
+ * フォールバックした等）場合に git が吐く stderr のパターン。
+ */
+const AUTH_ERROR_PATTERN =
+  /could not read (Username|Password)|Authentication failed|terminal prompts disabled|Permission denied \(publickey\)|Host key verification failed/i;
+
+/** リモート操作が認証に失敗したことを表す型付きエラー。 */
+export class GitAuthError extends Error {
+  readonly stderr: string;
+  constructor(stderr: string) {
+    super('git_auth_required');
+    this.name = 'GitAuthError';
+    this.stderr = stderr;
+  }
+}
+
 export const exec = (
   args: string[],
   cwd: string,
@@ -27,6 +44,10 @@ export const exec = (
             .join(', ');
           if (!expectedError || !expectedError.test(stderr)) {
             console.error(`[git] ${args[0]} failed:`, details);
+          }
+          if (AUTH_ERROR_PATTERN.test(stderr)) {
+            reject(new GitAuthError(stderr));
+            return;
           }
           reject(new Error(`git ${args[0]} failed: ${details}`));
           return;

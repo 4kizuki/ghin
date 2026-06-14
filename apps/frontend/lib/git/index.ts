@@ -1,5 +1,7 @@
 import 'server-only';
 
+export { GitAuthError } from './exec';
+
 export type {
   FileStatusCode,
   FileChange,

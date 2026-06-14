@@ -7,3 +7,12 @@ export class IdentityUnknownError extends Error {
     this.userEmail = userEmail;
   }
 }
+
+export class RemoteAuthError extends Error {
+  readonly detail: string;
+  constructor(detail: string) {
+    super('リモートの認証に失敗しました。認証情報を確認してください');
+    this.name = 'RemoteAuthError';
+    this.detail = detail;
+  }
+}

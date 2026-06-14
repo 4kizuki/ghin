@@ -6,7 +6,7 @@ export type {
   CommitPhase,
 } from './ai';
 
-export { IdentityUnknownError } from './errors';
+export { IdentityUnknownError, RemoteAuthError } from './errors';
 
 export {
   listRepositories,

@@ -1,10 +1,15 @@
 import { z } from 'zod';
-import { IdentityUnknownError } from './errors';
+import { IdentityUnknownError, RemoteAuthError } from './errors';
 
 const identityUnknownResponseSchema = z.object({
   error: z.string(),
   userName: z.string().nullable(),
   userEmail: z.string().nullable(),
+});
+
+const authRequiredResponseSchema = z.object({
+  error: z.literal('auth_required'),
+  detail: z.string(),
 });
 
 export const fetchJson = async <T>(
@@ -18,6 +23,10 @@ export const fetchJson = async <T>(
     if (res.status === 422 && body.includes('identity_unknown')) {
       const parsed = identityUnknownResponseSchema.parse(JSON.parse(body));
       throw new IdentityUnknownError(parsed.userName, parsed.userEmail);
+    }
+    if (res.status === 401 && body.includes('auth_required')) {
+      const parsed = authRequiredResponseSchema.parse(JSON.parse(body));
+      throw new RemoteAuthError(parsed.detail);
     }
     throw new Error(`API error ${res.status}: ${body}`);
   }
