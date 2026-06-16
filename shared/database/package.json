@@ -25,9 +25,9 @@
   },
   "devDependencies": {
     "@repo/config": "workspace:*",
-    "@types/node": "22.19.15",
-    "eslint": "9.39.4",
+    "@types/node": "25.8.0",
+    "eslint": "10.4.0",
     "prisma": "7.8.0",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }
